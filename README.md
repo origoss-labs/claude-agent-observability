@@ -64,6 +64,7 @@ export OTEL_LOGS_EXPORTER=otlp
 export OTEL_TRACES_EXPORTER=otlp
 export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+export OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative  # REQUIRED: the Prometheus/VM path drops delta metrics
 export OTEL_LOG_USER_PROMPTS=1                 # capture prompt text
 export OTEL_LOG_TOOL_CONTENT=1                 # capture tool input/output
 export OTEL_METRIC_EXPORT_INTERVAL=10000       # 10s, faster feedback while testing
@@ -93,19 +94,27 @@ manifests/networking/          Alloy OTLP NodePort Service
 manifests/dashboards/          Grafana dashboard ConfigMaps (sidecar-loaded)
 ```
 
-## Known verifications (first sync)
+## Status of first-sync verifications
 
-These were flagged during design and need a check the first time the stack comes
-up — they depend on exact chart rendering:
+Resolved during bring-up against a live `claude -p` run:
 
-- **Service DNS names** — Alloy/Grafana assume `victoriametrics-server`, `loki`,
-  `tempo` in `observability`. Confirm against `kubectl get svc -n observability`
-  and fix the URLs if a chart names them differently.
-- **Alloy NodePort selector** — `manifests/networking/alloy-otlp-nodeport.yaml`
-  selects `app.kubernetes.io/instance: alloy`. Confirm the chart's pod labels.
-- **Metric naming** — confirm the normalised names VM stored (Explore) and adapt
-  the dashboard PromQL accordingly. See the dashboard ConfigMap header.
+- ✅ **Service DNS** — VM service is `victoriametrics` (not `…-server`); Alloy +
+  Grafana corrected.
+- ✅ **Alloy NodePort selector** — labels confirmed; OTLP reachable at
+  `localhost:4317/4318`.
+- ✅ **Metric naming** — confirmed `claude_code_*_<unit>_total` with `job="claude-code"`.
+- ✅ **Dashboard bundle** — ColeMurray/claude-code-otel adopted and adapted
+  (`job` label + datasource uids); see the ConfigMap header.
+- ✅ **Delta vs cumulative** — Claude defaults to delta temporality, which the
+  Prometheus/VM path silently drops. The env snippet above sets
+  `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative`.
+
+Still open:
+
 - **Chart versions** — every Application uses `targetRevision: "*"`. Pin before
   using beyond local v1.
-- **Dashboard bundle** — the starter board is a placeholder; adopt + adapt the
-  ColeMurray/claude-code-otel JSON (instructions in the ConfigMap).
+- **Client-agnostic metrics** — to also capture metrics from clients that *forget*
+  the cumulative setting, add an `otelcol.processor.deltatocumulative` stage in
+  Alloy. Not done yet (we ship the documented env snippet instead).
+- **Sparse panels** — commit/PR/lines-of-code panels stay empty until a session
+  actually does that work.
