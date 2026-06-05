@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://grafana.github.io/helm-charts
     chart: tempo            # monolithic single-binary chart (NOT tempo-distributed)
-    targetRevision: "*"     # TODO pin before anything but local v1
+    targetRevision: "1.24.4"     # pinned to live chart version
     helm:
       values: |
         fullnameOverride: tempo

@@ -64,7 +64,7 @@ export OTEL_LOGS_EXPORTER=otlp
 export OTEL_TRACES_EXPORTER=otlp
 export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
-export OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative  # REQUIRED: the Prometheus/VM path drops delta metrics
+export OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative  # recommended; Alloy also converts delta->cumulative as a safety net
 export OTEL_LOG_USER_PROMPTS=1                 # capture prompt text
 export OTEL_LOG_TOOL_CONTENT=1                 # capture tool input/output
 export OTEL_METRIC_EXPORT_INTERVAL=10000       # 10s, faster feedback while testing
@@ -109,12 +109,16 @@ Resolved during bring-up against a live `claude -p` run:
   Prometheus/VM path silently drops. The env snippet above sets
   `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative`.
 
+Also resolved:
+
+- ✅ **Chart versions** — pinned to the live-synced versions (no more `"*"`);
+  Argo CD pinned to `v3.4.3`.
+- ✅ **Client-agnostic metrics** — Alloy runs `otelcol.processor.deltatocumulative`,
+  so metrics land even from clients that don't set the cumulative env var.
+- ✅ **Reproducible dashboard** — `scripts/adapt-dashboard.rb` regenerates the
+  ConfigMap from the vendored `dashboards/upstream/` JSON.
+
 Still open:
 
-- **Chart versions** — every Application uses `targetRevision: "*"`. Pin before
-  using beyond local v1.
-- **Client-agnostic metrics** — to also capture metrics from clients that *forget*
-  the cumulative setting, add an `otelcol.processor.deltatocumulative` stage in
-  Alloy. Not done yet (we ship the documented env snippet instead).
 - **Sparse panels** — commit/PR/lines-of-code panels stay empty until a session
   actually does that work.

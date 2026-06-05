@@ -1,6 +1,6 @@
 KIND_CLUSTER  ?= claude-obs
-# TODO pin ARGOCD_VERSION (e.g. v2.13.3) before anything but local v1
-ARGOCD_VERSION ?= stable
+# pinned to live-synced version v3.4.3
+ARGOCD_VERSION ?= v3.4.3
 
 # This machine runs podman, not docker. kind talks to the running podman machine.
 export KIND_EXPERIMENTAL_PROVIDER = podman

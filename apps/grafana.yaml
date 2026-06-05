@@ -14,7 +14,7 @@ spec:
   source:
     repoURL: https://grafana.github.io/helm-charts
     chart: grafana
-    targetRevision: "*"   # TODO pin before anything but local v1
+    targetRevision: "10.5.15"   # pinned to live chart version
     helm:
       values: |
         fullnameOverride: grafana

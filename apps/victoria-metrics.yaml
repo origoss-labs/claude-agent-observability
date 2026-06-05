@@ -15,7 +15,7 @@ spec:
   source:
     repoURL: https://victoriametrics.github.io/helm-charts/
     chart: victoria-metrics-single
-    targetRevision: "*"   # TODO pin before anything but local v1
+    targetRevision: "0.39.0"   # pinned to live chart version
     helm:
       values: |
         server:

@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://grafana.github.io/helm-charts
     chart: loki
-    targetRevision: "*"   # TODO pin before anything but local v1
+    targetRevision: "7.0.0"   # pinned to live chart version
     helm:
       values: |
         fullnameOverride: loki

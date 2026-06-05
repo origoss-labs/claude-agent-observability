@@ -3,7 +3,7 @@
 #   - metric panels: job="otel-collector" -> job="claude-code" (our service.name)
 #   - datasource uids -> victoriametrics / loki / tempo (our provisioned uids)
 # Loki panels were already correct (service_name="claude-code" label exists).
-# Regenerate with: ruby /tmp/adapt.rb  (see git history for provenance)
+# Regenerate with: ruby scripts/adapt-dashboard.rb
 ---
 apiVersion: v1
 kind: ConfigMap

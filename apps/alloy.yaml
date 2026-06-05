@@ -13,7 +13,7 @@ spec:
   source:
     repoURL: https://grafana.github.io/helm-charts
     chart: alloy
-    targetRevision: "*"   # TODO pin before anything but local v1
+    targetRevision: "1.8.2"   # pinned to the live chart version
     helm:
       values: |
         controller:
@@ -49,9 +49,17 @@ spec:
 
               otelcol.processor.batch "default" {
                 output {
-                  metrics = [otelcol.exporter.prometheus.vm.input]
+                  metrics = [otelcol.processor.deltatocumulative.default.input]
                   logs    = [otelcol.exporter.loki.default.input]
                   traces  = [otelcol.exporter.otlp.tempo.input]
+                }
+              }
+
+              // delta -> cumulative: Claude exports delta-temporality metrics; the
+              // Prometheus/VM remote_write path needs cumulative.
+              otelcol.processor.deltatocumulative "default" {
+                output {
+                  metrics = [otelcol.exporter.prometheus.vm.input]
                 }
               }
 
