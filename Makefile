@@ -1,5 +1,9 @@
 KIND_CLUSTER  ?= claude-obs
-ARGOCD_VERSION ?= stable   # TODO pin (e.g. v2.13.3) before anything but local v1
+# TODO pin ARGOCD_VERSION (e.g. v2.13.3) before anything but local v1
+ARGOCD_VERSION ?= stable
+
+# This machine runs podman, not docker. kind talks to the running podman machine.
+export KIND_EXPERIMENTAL_PROVIDER = podman
 
 .PHONY: up down cluster argocd root status password help
 
@@ -20,7 +24,8 @@ cluster:
 
 argocd:
 	kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-	kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/$(ARGOCD_VERSION)/manifests/install.yaml
+	# server-side apply: Argo's CRDs exceed kubectl's client-side annotation limit
+	kubectl apply --server-side --force-conflicts -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/$(ARGOCD_VERSION)/manifests/install.yaml
 	kubectl rollout status -n argocd deploy/argocd-server --timeout=300s
 
 root:

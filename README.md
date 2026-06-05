@@ -32,7 +32,8 @@ Deployed via **Argo CD** (app-of-apps) syncing from this Git remote.
 
 ## Prerequisites
 
-- Docker, [kind](https://kind.sigs.k8s.io/), `kubectl`, `make`
+- [Podman](https://podman.io/) with a running `podman machine`, [kind](https://kind.sigs.k8s.io/), `kubectl`, `make`
+  (the Makefile sets `KIND_EXPERIMENTAL_PROVIDER=podman`; for plain docker, unset it)
 - Internet access (Argo CD pulls charts; reconciles from the GitHub remote)
 - **This repo pushed to its remote.** Argo CD syncs from Git, *not* your working
   copy — commit and push before `make up`, and make sure the `repoURL` in
