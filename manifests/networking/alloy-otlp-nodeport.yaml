@@ -1,0 +1,26 @@
+# Exposes Alloy's OTLP receiver on fixed NodePorts so kind's extraPortMappings
+# can forward localhost:4317/:4318 to it. Selector targets the Alloy chart pods
+# (release name "alloy" -> instance label "alloy"). Verify labels if you rename.
+apiVersion: v1
+kind: Service
+metadata:
+  name: alloy-otlp
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: claude-agent-observability
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: alloy
+    app.kubernetes.io/instance: alloy
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      nodePort: 31317      # must match kind/cluster.yaml (host 4317)
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      nodePort: 31318      # must match kind/cluster.yaml (host 4318)
+      protocol: TCP

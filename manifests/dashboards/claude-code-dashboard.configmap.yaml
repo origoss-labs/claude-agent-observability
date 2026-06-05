@@ -1,0 +1,52 @@
+# Starter dashboard. The decision (ADR-0001 / grilling) was to ADOPT the
+# ColeMurray/claude-code-otel dashboard bundle. That JSON assumes Prometheus +
+# dotted/native metric names; our pipeline normalises names (claude_code_*),
+# so its PromQL must be adapted before pasting in here. Until then this minimal
+# board proves the datasource wiring end-to-end.
+#
+# To adopt the bundle:
+#   1. grab claude-code-dashboard.json from github.com/ColeMurray/claude-code-otel
+#   2. in Grafana Explore, confirm the real metric names VM stored
+#   3. rewrite the panel queries to the normalised names
+#   4. replace the `claude-code.json` value below with the adapted JSON
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-code-dashboard
+  namespace: observability
+  labels:
+    grafana_dashboard: "1"
+data:
+  claude-code.json: |
+    {
+      "title": "Claude Code (starter)",
+      "uid": "claude-code-starter",
+      "schemaVersion": 39,
+      "version": 1,
+      "time": { "from": "now-6h", "to": "now" },
+      "panels": [
+        {
+          "type": "text",
+          "title": "About",
+          "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+          "options": {
+            "mode": "markdown",
+            "content": "Starter board — replace with the adapted ColeMurray bundle. Use **Explore** on the VictoriaMetrics, Loki, and Tempo datasources to confirm metric/label names and the trace waterfall."
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Token usage (rate)",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+          "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+              "expr": "sum(rate(claude_code_token_usage_tokens_total[5m])) by (type)",
+              "legendFormat": "{{type}}"
+            }
+          ]
+        }
+      ]
+    }

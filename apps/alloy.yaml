@@ -1,0 +1,94 @@
+# Ingest gateway. Single OTLP endpoint; fans out traces->Tempo, logs->Loki,
+# metrics->VictoriaMetrics. Exposed to the laptop via a NodePort Service
+# (manifests/networking/alloy-otlp-nodeport.yaml) mapped to localhost:4317/:4318.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: alloy
+    targetRevision: "*"   # TODO pin before anything but local v1
+    helm:
+      values: |
+        controller:
+          type: deployment
+          replicas: 1
+        alloy:
+          # declare the OTLP ports on the pod (the NodePort Service targets these)
+          extraPorts:
+            - name: otlp-grpc
+              port: 4317
+              targetPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              port: 4318
+              targetPort: 4318
+              protocol: TCP
+          configMap:
+            content: |-
+              logging {
+                level  = "info"
+                format = "logfmt"
+              }
+
+              otelcol.receiver.otlp "default" {
+                grpc { endpoint = "0.0.0.0:4317" }
+                http { endpoint = "0.0.0.0:4318" }
+                output {
+                  metrics = [otelcol.processor.batch.default.input]
+                  logs    = [otelcol.processor.batch.default.input]
+                  traces  = [otelcol.processor.batch.default.input]
+                }
+              }
+
+              otelcol.processor.batch "default" {
+                output {
+                  metrics = [otelcol.exporter.prometheus.vm.input]
+                  logs    = [otelcol.exporter.loki.default.input]
+                  traces  = [otelcol.exporter.otlp.tempo.input]
+                }
+              }
+
+              // metrics -> VictoriaMetrics. Names normalised to Prometheus form
+              // here (dots->underscores, _total/unit suffixes).
+              otelcol.exporter.prometheus "vm" {
+                forward_to = [prometheus.remote_write.vm.receiver]
+              }
+              prometheus.remote_write "vm" {
+                endpoint {
+                  url = "http://victoriametrics-server.observability.svc.cluster.local:8428/api/v1/write"
+                }
+              }
+
+              // logs -> Loki
+              otelcol.exporter.loki "default" {
+                forward_to = [loki.write.default.receiver]
+              }
+              loki.write "default" {
+                endpoint {
+                  url = "http://loki.observability.svc.cluster.local:3100/loki/api/v1/push"
+                }
+              }
+
+              // traces -> Tempo (OTLP gRPC)
+              otelcol.exporter.otlp "tempo" {
+                client {
+                  endpoint = "tempo.observability.svc.cluster.local:4317"
+                  tls { insecure = true }
+                }
+              }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

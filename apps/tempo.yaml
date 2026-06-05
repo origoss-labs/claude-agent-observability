@@ -1,0 +1,48 @@
+# Traces store. Tempo monolithic, local filesystem backend on a PVC.
+# OTLP gRPC receiver on :4317 (Alloy -> tempo:4317); query API on :3200 (Grafana).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: tempo            # monolithic single-binary chart (NOT tempo-distributed)
+    targetRevision: "*"     # TODO pin before anything but local v1
+    helm:
+      values: |
+        fullnameOverride: tempo
+        persistence:
+          enabled: true
+          size: 5Gi
+        tempo:
+          retention: 72h
+          storage:
+            trace:
+              backend: local
+              local:
+                path: /var/tempo/traces
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:4317
+                http:
+                  endpoint: 0.0.0.0:4318
+          # service graph from span metrics is optional and adds write load to VM.
+          # Enable later by configuring metricsGenerator + remote_write to VM.
+          metricsGenerator:
+            enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

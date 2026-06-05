@@ -1,0 +1,7 @@
+# local tooling
+.DS_Store
+*.log
+
+# rendered/temporary manifests
+/tmp/
+*.tmp

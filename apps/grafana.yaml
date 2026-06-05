@@ -1,0 +1,72 @@
+# Visualisation. Datasources provisioned for all three stores, with Tempo wired
+# for trace->logs (Loki) and trace->metrics (VM) correlation. Dashboards are
+# loaded by the sidecar from any ConfigMap labelled grafana_dashboard=1
+# (see manifests/dashboards/). UI on localhost:3000 via NodePort 30300.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: grafana
+    targetRevision: "*"   # TODO pin before anything but local v1
+    helm:
+      values: |
+        fullnameOverride: grafana
+        adminUser: admin
+        adminPassword: admin        # local-only v1 convenience; do not ship
+        persistence:
+          enabled: false            # everything is provisioned from Git
+        service:
+          type: NodePort
+          nodePort: 30300           # must match kind/cluster.yaml (host 3000)
+        sidecar:
+          dashboards:
+            enabled: true
+            label: grafana_dashboard
+            labelValue: "1"
+            searchNamespace: ALL
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+              - name: VictoriaMetrics
+                uid: victoriametrics
+                type: prometheus
+                access: proxy
+                url: http://victoriametrics-server.observability.svc.cluster.local:8428
+                isDefault: true
+              - name: Loki
+                uid: loki
+                type: loki
+                access: proxy
+                url: http://loki.observability.svc.cluster.local:3100
+              - name: Tempo
+                uid: tempo
+                type: tempo
+                access: proxy
+                url: http://tempo.observability.svc.cluster.local:3200
+                jsonData:
+                  tracesToLogsV2:
+                    datasourceUid: loki
+                    filterByTraceID: true
+                    spanStartTimeShift: "-1h"
+                    spanEndTimeShift: "1h"
+                  tracesToMetrics:
+                    datasourceUid: victoriametrics
+                  serviceMap:
+                    datasourceUid: victoriametrics
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

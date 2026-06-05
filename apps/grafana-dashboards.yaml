@@ -1,0 +1,24 @@
+# Applies dashboard ConfigMaps under manifests/dashboards/. The Grafana sidecar
+# watches for ConfigMaps labelled grafana_dashboard=1 and loads them.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana-dashboards
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/origoss-labs/claude-agent-observability.git
+    targetRevision: main
+    path: manifests/dashboards
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

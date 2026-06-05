@@ -1,0 +1,29 @@
+# Root "app of apps". Argo CD applies this once during bootstrap; it then
+# discovers every Argo Application under apps/ and manages the whole stack.
+#
+# repoURL must point at the pushed remote — Argo reconciles from Git, not from
+# your working copy. Change it if you fork/rename.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/origoss-labs/claude-agent-observability.git
+    targetRevision: main
+    path: apps
+    directory:
+      recurse: true   # apps/ contains only Argo Application manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

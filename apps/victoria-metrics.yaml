@@ -1,0 +1,36 @@
+# Metrics store. Single-node VictoriaMetrics: one binary, local disk, no object
+# storage. Alloy remote_writes Prometheus-normalised metrics here.
+#
+# Service DNS assumed by Alloy + Grafana: victoriametrics-server.observability:8428
+# (set by server.fullnameOverride below). Verify on first sync — see README.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: victoria-metrics
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://victoriametrics.github.io/helm-charts/
+    chart: victoria-metrics-single
+    targetRevision: "*"   # TODO pin before anything but local v1
+    helm:
+      values: |
+        server:
+          fullnameOverride: victoriametrics
+          retentionPeriod: 3d
+          persistentVolume:
+            enabled: true
+            size: 5Gi
+          # VM accepts OTel->Prometheus remote_write at /api/v1/write out of the box.
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
