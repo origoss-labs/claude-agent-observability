@@ -20,6 +20,8 @@ spec:
           type: deployment
           replicas: 1
         alloy:
+          # deltatocumulative is an experimental Alloy component; this flag lets it load
+          stabilityLevel: experimental
           # declare the OTLP ports on the pod (the NodePort Service targets these)
           extraPorts:
             - name: otlp-grpc
