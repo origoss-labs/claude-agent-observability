@@ -39,7 +39,7 @@ spec:
                 uid: victoriametrics
                 type: prometheus
                 access: proxy
-                url: http://victoriametrics-server.observability.svc.cluster.local:8428
+                url: http://victoriametrics.observability.svc.cluster.local:8428
                 isDefault: true
               - name: Loki
                 uid: loki
