@@ -19,8 +19,8 @@ endpoint ingesting Claude Code telemetry from ~16 developers so the team can
 understand its Claude Code usage. This inverts every trust assumption — public
 internet, many named users, sensitive-by-default payload — and rides on existing
 cluster infrastructure: Traefik as sole public ingress (foundation ADR 0017),
-the agentgateway + Keycloak JWT gate (foundation ADR 0021), Grafana-style SSO
-(foundation ADR 0023), and Argo CD GitOps.
+the agentgateway + Keycloak JWT gate (foundation ADR 0021), Argo CD-style native
+OIDC SSO (foundation ADR 0023), and Argo CD GitOps.
 
 Two facts constrained the design:
 
@@ -42,12 +42,14 @@ Two facts constrained the design:
 laptop fetches a short-lived JWT; the client exports over **http/protobuf** (port
 4318). A new agentgateway route validates the JWT with the *same* `jwtAuth` + CEL
 pattern already deployed for agentregistry, gating ingest on the `obs:write`
-scope. Endpoint, auth, and telemetry env are pushed via MDM-locked managed
-settings.
+scope (the observability analogue of agentregistry's `registry:write`). Endpoint,
+auth, and telemetry env are pushed via MDM-locked managed settings.
 
 **3. UI authentication (human).** Grafana's native OIDC client points at the
-Keycloak `agentregistry` realm (Google upstream), mirroring Argo CD SSO. Keycloak
-group/email maps each login to a Grafana `Developer` or `Admin` role.
+Keycloak `agentregistry` realm (Google upstream), mirroring Argo CD SSO. Roles
+are mapped by **email allowlist** — Grafana `Developer` vs `Admin` — because the
+Google-brokered token carries email but not Workspace groups (foundation ADR
+0023 made the same choice for the same reason).
 
 **4. Per-[[Tenant]] isolation (hard).** One Tenant per Developer.
 - *Write*: agentgateway stamps `X-Scope-OrgID` from a developer-identity claim in
@@ -85,7 +87,10 @@ data.
   — the agentgateway route, the per-developer Keycloak clients, and Traefik. The
   observability source of truth stays here, beside this ADR.
 - **Keycloak realm:** reuse the existing `agentregistry` realm — add an
-  `obs:write` client scope plus the per-developer clients; no new realm.
+  `obs:write` client scope plus the per-developer clients; no new realm. This
+  makes observability a third consumer of that shared realm (with Argo CD and
+  agentregistry), enlarging the load-bearing blast radius foundation ADR 0023
+  flagged: realm changes now affect all three.
 - **Tenant key:** the developer's **email**. Grafana receives it from the Google
   OIDC login; a Keycloak protocol-mapper stamps the same email into each
   developer's `client_credentials` ingest JWT, so the write-side and read-side
