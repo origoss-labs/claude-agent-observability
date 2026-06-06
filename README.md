@@ -85,8 +85,11 @@ kubectl port-forward -n argocd svc/argocd-server 8080:443
 
 The stack comes back after a host reboot via two pieces:
 
-- the kind node container runs with `--restart=always`, so podman restarts it
-  whenever its daemon is up: `podman update --restart=always claude-obs-control-plane`
+- the kind node container restarts automatically — needs BOTH:
+  - mark it: `podman update --restart=always claude-obs-control-plane`
+  - let podman start such containers on VM boot (restart=always alone does NOT —
+    it only restarts on crash while podman is already running):
+    `podman machine ssh 'sudo systemctl enable podman-restart.service'`
 - a login LaunchAgent boots the podman VM (it does not auto-start on macOS):
   ```bash
   cp scripts/com.origoss.podman-machine.plist ~/Library/LaunchAgents/
