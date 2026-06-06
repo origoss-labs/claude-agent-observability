@@ -1,0 +1,59 @@
+# Traces store — HOSTED deployment (ADR 0004). Tempo monolithic single-binary
+# (NOT tempo-distributed). Stores traces on the local filesystem backend.
+#
+# Multitenancy is intentionally DISABLED in this slice (#185). Tempo with
+# multitenancyEnabled=true REQUIRES X-Scope-OrgID on every write/read and would reject
+# Alloy's header-less ingest (dropping all traces). Issue #186 turns it on together
+# with the X-Scope-OrgID routing in Alloy + the Grafana Tempo datasource.
+#
+# OTLP gRPC :4317 (Alloy -> tempo:4317); query API :3200 (Grafana datasource).
+# Destination server: set by the foundation cluster's Argo CD multi-source app.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hosted-tempo
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: workloads
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: tempo            # monolithic single-binary chart (NOT tempo-distributed)
+    targetRevision: "1.24.4"   # pinned; appVersion 2.9.0
+    helm:
+      values: |
+        fullnameOverride: tempo
+        persistence:
+          enabled: true
+          size: 20Gi
+        tempo:
+          # Per-tenant isolation is enabled in #186 (it requires X-Scope-OrgID on every
+          # request); kept off here so #185's header-less ingest is accepted.
+          multitenancyEnabled: false
+          retention: 720h     # 30 days
+          storage:
+            trace:
+              backend: local
+              local:
+                path: /var/tempo/traces
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:4317
+                http:
+                  endpoint: 0.0.0.0:4318
+          # metricsGenerator disabled — avoids back-pressure on VM and keeps
+          # the stack footprint small. Enable later if span-derived RED metrics wanted.
+          metricsGenerator:
+            enabled: false
+  destination:
+    server: https://kubernetes.default.svc   # placeholder — overridden by foundation Argo CD
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

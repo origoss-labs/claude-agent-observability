@@ -1,0 +1,99 @@
+# Visualisation — HOSTED deployment (ADR 0004). Three datasources only:
+# VictoriaMetrics (Prometheus-type plugin), VictoriaLogs, Tempo.
+# No Prometheus datasource, no Loki datasource (those are local-stack only).
+#
+# Authentication/SSO and the public Ingress are the SEPARATE foundation PR. Until then
+# admin login uses a Secret created out-of-band (NOT committed to git) — see
+# admin.existingSecret below; the auth PR replaces password login with native OIDC.
+#
+# Dashboards load from any ConfigMap labelled grafana_dashboard=1 in the cluster.
+# The existing manifests/dashboards/ ConfigMaps are still usable; the hosted
+# grafana-dashboards Application (see hosted/grafana-dashboards.yaml) applies them.
+#
+# Destination server: set by the foundation cluster's Argo CD multi-source app.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hosted-grafana
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: workloads
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: grafana
+    targetRevision: "10.5.15"   # pinned; appVersion 12.3.1
+    helm:
+      values: |
+        fullnameOverride: grafana
+        # Admin credentials come from a Secret created out-of-band (kubectl / sealed-secret),
+        # NEVER committed to git. Create it once before first sync:
+        #   kubectl -n observability create secret generic grafana-admin \
+        #     --from-literal=admin-user=admin --from-literal=admin-password=<strong-pw>
+        # The auth PR (foundation, #186) replaces password login with native OIDC.
+        admin:
+          existingSecret: grafana-admin
+          userKey: admin-user
+          passwordKey: admin-password
+        # Explicitly deny anonymous access — don't rely on the chart default for an app
+        # that becomes public.
+        grafana.ini:
+          auth.anonymous:
+            enabled: false
+        # VM datasource plugins for VictoriaMetrics + VictoriaLogs queries
+        plugins:
+          - victoriametrics-metrics-datasource
+          - victoriametrics-logs-datasource
+        persistence:
+          enabled: false            # everything provisioned from Git; stateless Grafana
+        service:
+          type: ClusterIP           # no NodePort — hosted; public access via Ingress (other PR)
+        sidecar:
+          dashboards:
+            enabled: true
+            label: grafana_dashboard
+            labelValue: "1"
+            searchNamespace: ALL
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+              # VictoriaMetrics — dotted OTLP names, queried via VM datasource plugin
+              - name: VictoriaMetrics
+                uid: vmetrics
+                type: victoriametrics-metrics-datasource
+                access: proxy
+                url: http://victoriametrics.observability.svc.cluster.local:8428
+                isDefault: true
+              # VictoriaLogs — LogsQL, queried via VM logs datasource plugin
+              - name: VictoriaLogs
+                uid: vlogs
+                type: victoriametrics-logs-datasource
+                access: proxy
+                url: http://victorialogs.observability.svc.cluster.local:9428
+              # Tempo — trace waterfall; trace->logs wired to VictoriaLogs
+              - name: Tempo
+                uid: tempo
+                type: tempo
+                access: proxy
+                url: http://tempo.observability.svc.cluster.local:3200
+                jsonData:
+                  tracesToLogsV2:
+                    datasourceUid: vlogs
+                    filterByTraceID: true
+                    spanStartTimeShift: "-1h"
+                    spanEndTimeShift: "1h"
+                  tracesToMetrics:
+                    datasourceUid: vmetrics
+                  serviceMap:
+                    datasourceUid: vmetrics
+  destination:
+    server: https://kubernetes.default.svc   # placeholder — overridden by foundation Argo CD
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

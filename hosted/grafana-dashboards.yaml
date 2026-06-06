@@ -1,0 +1,34 @@
+# Applies dashboard ConfigMaps from manifests/dashboards/. The Grafana sidecar watches
+# for ConfigMaps labelled grafana_dashboard=1.
+#
+# Hosted deploys ONLY the 24640 VictoriaStack dashboard (it targets VictoriaMetrics,
+# uid=vmetrics, with dotted OTLP metric names). The 25255 + ColeMurray dashboards are
+# excluded via directory.include: they hard-code the Prometheus datasource
+# (uid=prometheus, absent here) and Prometheus-normalised metric names. Re-pointing
+# them to VM is issue #188.
+#
+# Destination server: set by the foundation cluster's Argo CD multi-source app.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hosted-grafana-dashboards
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: workloads
+  source:
+    repoURL: https://github.com/origoss-labs/claude-agent-observability.git
+    targetRevision: main   # foundation multi-source app pins the revision
+    path: manifests/dashboards
+    directory:
+      include: 'claude-code-victoriastack.configmap.yaml'
+  destination:
+    server: https://kubernetes.default.svc   # placeholder — overridden by foundation Argo CD
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
