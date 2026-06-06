@@ -230,8 +230,42 @@ admin:
   userKey: admin-user
   passwordKey: admin-password
 grafana.ini:
+  server:
+    root_url: https://grafana.ops.oracle-apps.origoss.com
   auth.anonymous:
     enabled: false
+  auth.generic_oauth:
+    enabled: true
+    name: Keycloak
+    scopes: "openid email profile"
+    auth_url: https://auth.oracle-apps.origoss.com/realms/agentregistry/protocol/openid-connect/auth
+    token_url: https://auth.oracle-apps.origoss.com/realms/agentregistry/protocol/openid-connect/token
+    api_url: https://auth.oracle-apps.origoss.com/realms/agentregistry/protocol/openid-connect/userinfo
+    email_attribute_path: email
+    role_attribute_path: "contains(['REPLACE_ADMIN@origoss.com'], email) && 'Admin' || 'Viewer'"
+    allow_sign_up: true
+envValueFrom:
+  GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+    secretKeyRef:
+      name: grafana-oidc
+      key: client-id
+  GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+    secretKeyRef:
+      name: grafana-oidc
+      key: client-secret
+# ingress.enabled: true here (manifest keeps it false until DNS) so the render
+# exercises the Ingress template.
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - grafana.ops.oracle-apps.origoss.com
+  tls:
+    - secretName: grafana-tls
+      hosts:
+        - grafana.ops.oracle-apps.origoss.com
 plugins:
   - victoriametrics-metrics-datasource
   - victoriametrics-logs-datasource
@@ -253,19 +287,31 @@ datasources:
         uid: vmetrics
         type: victoriametrics-metrics-datasource
         access: proxy
-        url: http://vmselect.observability.svc.cluster.local:8481/select/0/prometheus
+        url: http://agentgateway-obs-read.agentgateway-obs-read.svc.cluster.local:8481/select/prometheus
         isDefault: true
+        jsonData:
+          oauthPassThru: true
+      - name: VictoriaMetrics (Admin — all tenants)
+        uid: vmetrics-admin
+        type: victoriametrics-metrics-datasource
+        access: proxy
+        url: http://agentgateway-obs-read.agentgateway-obs-read.svc.cluster.local:8481/select/multitenant/prometheus
+        jsonData:
+          oauthPassThru: true
       - name: VictoriaLogs
         uid: vlogs
         type: victoriametrics-logs-datasource
         access: proxy
-        url: http://victorialogs.observability.svc.cluster.local:9428
+        url: http://agentgateway-obs-read.agentgateway-obs-read.svc.cluster.local:9428
+        jsonData:
+          oauthPassThru: true
       - name: Tempo
         uid: tempo
         type: tempo
         access: proxy
-        url: http://tempo.observability.svc.cluster.local:3200
+        url: http://agentgateway-obs-read.agentgateway-obs-read.svc.cluster.local:3200
         jsonData:
+          oauthPassThru: true
           tracesToLogsV2:
             datasourceUid: vlogs
             filterByTraceID: true
