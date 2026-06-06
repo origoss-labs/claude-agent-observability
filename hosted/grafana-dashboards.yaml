@@ -4,8 +4,12 @@
 # Hosted deploys ONLY the 24640 VictoriaStack dashboard (it targets VictoriaMetrics,
 # uid=vmetrics, with dotted OTLP metric names). The 25255 + ColeMurray dashboards are
 # excluded via directory.include: they hard-code the Prometheus datasource
-# (uid=prometheus, absent here) and Prometheus-normalised metric names. Re-pointing
-# them to VM is issue #188.
+# (uid=prometheus, absent here) and Prometheus-NORMALISED metric names
+# (claude_code_cost_usage_total) that do not exist in the VM-native dotted ingest.
+# #188 decision: hosted STANDARDISES on the VM-native 24640 dashboard rather than
+# rewriting the two community dashboards to dotted names (one ingest = one naming, and
+# 24640 is the curated, comprehensive Claude Code dashboard). 25255 + ColeMurray remain
+# LOCAL-only — the kind dual-stack keeps Prometheus (ADR 0003 / ADR 0004).
 #
 # Destination server: set by the foundation cluster's Argo CD multi-source app.
 apiVersion: argoproj.io/v1alpha1
