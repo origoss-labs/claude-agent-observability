@@ -1,0 +1,114 @@
+# Ingest gateway — HOSTED deployment (ADR 0004). Alloy is the single OTLP entry point
+# for all Claude Code developer sessions. Fan-out: metrics->VictoriaMetrics,
+# logs->VictoriaLogs, traces->Tempo (no Prometheus, no Loki — those are local-only).
+#
+# HTTP/protobuf :4318 is the primary hosted ingest port (easier to route behind
+# standard HTTP proxies and TLS termination); gRPC :4317 is retained for parity.
+# The public Ingress/TLS wiring is the SEPARATE foundation-repo PR (#185b) —
+# this Application exposes Alloy as a ClusterIP Service only.
+#
+# deltatocumulative processor: Claude Code exports delta-temporality metrics; VM's
+# OTLP ingest wants cumulative. Kept from the local stack.
+#
+# Content-agnostic: no filtering of prompt or tool bodies here — that is controlled
+# by the client's OTEL_LOG_USER_PROMPTS / OTEL_LOG_TOOL_CONTENT flags.
+#
+# Destination server: set by the foundation cluster's Argo CD multi-source app.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hosted-alloy
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: alloy
+    targetRevision: "1.8.2"   # pinned; appVersion v1.16.1
+    helm:
+      values: |
+        controller:
+          type: deployment
+          replicas: 1
+        alloy:
+          # deltatocumulative is an experimental Alloy component; this flag lets it load
+          stabilityLevel: experimental
+          # declare the OTLP ports on the pod (the ClusterIP Service targets these)
+          extraPorts:
+            - name: otlp-grpc
+              port: 4317
+              targetPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              port: 4318
+              targetPort: 4318
+              protocol: TCP
+          configMap:
+            content: |-
+              logging {
+                level  = "info"
+                format = "logfmt"
+              }
+
+              otelcol.receiver.otlp "default" {
+                // http/protobuf is the primary hosted path (proxy-friendly, TLS-terminable)
+                http { endpoint = "0.0.0.0:4318" }
+                grpc { endpoint = "0.0.0.0:4317" }
+                output {
+                  metrics = [otelcol.processor.batch.default.input]
+                  logs    = [otelcol.processor.batch.default.input]
+                  traces  = [otelcol.processor.batch.default.input]
+                }
+              }
+
+              otelcol.processor.batch "default" {
+                output {
+                  metrics = [otelcol.processor.deltatocumulative.default.input]
+                  logs    = [otelcol.exporter.otlphttp.victorialogs.input]
+                  traces  = [otelcol.exporter.otlp.tempo.input]
+                }
+              }
+
+              // delta -> cumulative: Claude exports delta-temporality metrics; VM's
+              // OTLP ingest wants cumulative (silently drops delta otherwise).
+              otelcol.processor.deltatocumulative "default" {
+                output {
+                  metrics = [otelcol.exporter.otlphttp.vmnative.input]
+                }
+              }
+
+              // metrics -> VictoriaMetrics OTLP-native; VM keeps dotted OTLP names.
+              // X-Scope-OrgID tenant header forwarding is wired in the ingress/auth PR.
+              otelcol.exporter.otlphttp "vmnative" {
+                client {
+                  endpoint = "http://victoriametrics.observability.svc.cluster.local:8428/opentelemetry"
+                  tls { insecure = true }
+                }
+              }
+
+              // logs -> VictoriaLogs OTLP-native; attributes land as queryable VL fields.
+              otelcol.exporter.otlphttp "victorialogs" {
+                client {
+                  endpoint = "http://victorialogs.observability.svc.cluster.local:9428/insert/opentelemetry"
+                  tls { insecure = true }
+                }
+              }
+
+              // traces -> Tempo OTLP gRPC, single shared store.
+              otelcol.exporter.otlp "tempo" {
+                client {
+                  endpoint = "tempo.observability.svc.cluster.local:4317"
+                  tls { insecure = true }
+                }
+              }
+  destination:
+    server: https://kubernetes.default.svc   # placeholder — overridden by foundation Argo CD
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

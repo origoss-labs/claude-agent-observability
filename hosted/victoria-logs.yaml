@@ -1,0 +1,46 @@
+# Logs store — HOSTED deployment (ADR 0004). Single-binary VictoriaLogs. Loki (the
+# local dual-stack log store) is NOT deployed here.
+#
+# Multitenancy is intentionally NOT enabled in this slice (#185). Issue #186 enables
+# --enableMultitenancy (X-Scope-OrgID -> AccountID) and the matching Alloy/Grafana
+# routing.
+#
+# Service DNS: victorialogs.observability.svc.cluster.local:9428
+# OTLP ingest path: /insert/opentelemetry/v1/logs (Alloy's otlphttp exporter appends
+# the /v1/logs suffix to the base /insert/opentelemetry endpoint automatically).
+# Destination server: set by the foundation cluster's Argo CD multi-source app.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hosted-victoria-logs
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://victoriametrics.github.io/helm-charts/
+    chart: victoria-logs-single
+    targetRevision: "0.13.6"   # pinned; appVersion VictoriaLogs v1.50.0
+    helm:
+      values: |
+        server:
+          fullnameOverride: victorialogs   # -> Service victorialogs:9428
+          retentionPeriod: "30d"
+          persistentVolume:
+            enabled: true
+            size: 20Gi
+          extraArgs:
+            envflag.enable: "true"
+            envflag.prefix: VM_
+            loggerFormat: json
+            http.shutdownDelay: 15s
+  destination:
+    server: https://kubernetes.default.svc   # placeholder — overridden by foundation Argo CD
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

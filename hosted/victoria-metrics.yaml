@@ -1,0 +1,48 @@
+# Metrics store — HOSTED deployment (supersedes ADR 0003 for hosted only; see ADR 0004).
+# Single-binary VictoriaMetrics. Prometheus + Loki (the local dual-stack) are NOT
+# deployed here.
+#
+# Multitenancy is intentionally NOT enabled in this slice (#185 = single stream, admin
+# view). Issue #186 enables --enableMultitenancy AND wires the matching X-Scope-OrgID
+# routing in Alloy + Grafana; enabling it here without that routing would misroute
+# headerless ingest into tenant 0.
+#
+# Service DNS: victoriametrics.observability.svc.cluster.local:8428
+# Destination server: set by the foundation cluster's Argo CD multi-source app (see #185).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hosted-victoria-metrics
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://victoriametrics.github.io/helm-charts/
+    chart: victoria-metrics-single
+    targetRevision: "0.39.0"   # pinned; appVersion v1.144.0
+    helm:
+      values: |
+        server:
+          fullnameOverride: victoriametrics   # -> Service victoriametrics:8428
+          retentionPeriod: "30d"
+          persistentVolume:
+            enabled: true
+            size: 20Gi
+          extraArgs:
+            envflag.enable: "true"
+            envflag.prefix: VM_
+            loggerFormat: json
+            httpListenAddr: ":8428"
+  destination:
+    # Destination server is managed by the foundation cluster's Argo CD.
+    # The parent multi-source Application overrides this; leave as placeholder.
+    server: https://kubernetes.default.svc   # placeholder — overridden by foundation Argo CD
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
