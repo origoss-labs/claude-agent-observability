@@ -81,6 +81,21 @@ kubectl port-forward -n argocd svc/argocd-server 8080:443
 # https://localhost:8080  (user: admin)
 ```
 
+## Reboot persistence (local)
+
+The stack comes back after a host reboot via two pieces:
+
+- the kind node container runs with `--restart=always`, so podman restarts it
+  whenever its daemon is up: `podman update --restart=always claude-obs-control-plane`
+- a login LaunchAgent boots the podman VM (it does not auto-start on macOS):
+  ```bash
+  cp scripts/com.origoss.podman-machine.plist ~/Library/LaunchAgents/
+  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.origoss.podman-machine.plist
+  ```
+
+On login: VM boots → node restarts → Argo CD reconciles the stack. PVC data is
+preserved as long as the node container is restarted (not recreated).
+
 ## Repo layout
 
 ```
