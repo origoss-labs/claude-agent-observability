@@ -242,7 +242,7 @@ grafana.ini:
     token_url: https://auth.oracle-apps.origoss.com/realms/agentregistry/protocol/openid-connect/token
     api_url: https://auth.oracle-apps.origoss.com/realms/agentregistry/protocol/openid-connect/userinfo
     email_attribute_path: email
-    role_attribute_path: "contains(['REPLACE_ADMIN@origoss.com'], email) && 'Admin' || 'Viewer'"
+    role_attribute_path: "contains(['replace-me@origoss.invalid'], email) && 'Admin' || 'Viewer'"
     allow_sign_up: true
 envValueFrom:
   GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
@@ -312,6 +312,7 @@ datasources:
         url: http://agentgateway-obs-read.agentgateway-obs-read.svc.cluster.local:3200
         jsonData:
           oauthPassThru: true
+          streamingEnabled: false
           tracesToLogsV2:
             datasourceUid: vlogs
             filterByTraceID: true

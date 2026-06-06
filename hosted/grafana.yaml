@@ -60,7 +60,7 @@ spec:
             # list MUST match adminEmails in the foundation agentgateway-obs-read values —
             # the same tenant-key decision evaluated on both sides. Replace the placeholder;
             # everyone not listed is a Viewer (read-scoped to their own tenant by the proxy).
-            role_attribute_path: "contains(['REPLACE_ADMIN@origoss.com'], email) && 'Admin' || 'Viewer'"
+            role_attribute_path: "contains(['replace-me@origoss.invalid'], email) && 'Admin' || 'Viewer'"
             allow_sign_up: true
         # client id/secret from the out-of-band grafana-oidc Secret (foundation RUNBOOK §3).
         envValueFrom:
@@ -147,6 +147,9 @@ spec:
                 url: http://agentgateway-obs-read.agentgateway-obs-read.svc.cluster.local:3200
                 jsonData:
                   oauthPassThru: true
+                  # Tempo streaming search does NOT forward oauthPassThru headers reliably
+                  # (grafana/grafana#81998) — the proxy would 401 it. Keep streaming off.
+                  streamingEnabled: false
                   tracesToLogsV2:
                     datasourceUid: vlogs
                     filterByTraceID: true
