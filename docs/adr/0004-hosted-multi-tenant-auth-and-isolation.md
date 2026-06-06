@@ -52,17 +52,23 @@ Google-brokered token carries email but not Workspace groups (foundation ADR
 0023 made the same choice for the same reason).
 
 **4. Per-[[Tenant]] isolation (hard).** One Tenant per Developer.
-- *Write*: agentgateway stamps `X-Scope-OrgID` from a developer-identity claim in
-  the validated JWT; Alloy (`include_metadata` + `headers_setter`) forwards it to
-  the stores.
+- *Write*: agentgateway validates the JWT, then stamps `X-Scope-OrgID` from the
+  developer's `tenant_id` claim; Alloy (`include_metadata` + batch `metadata_keys`
+  + `otelcol.auth.headers`) forwards it to the stores — relabelled to `AccountID`
+  for VictoriaMetrics/VictoriaLogs, whose tenants are numeric (see constraint below).
 - *Read*: Grafana forwards the logged-in user's OIDC identity to a read proxy
   that injects the matching `X-Scope-OrgID`; a separate `Admin` datasource reads
   cross-tenant for the aggregate view.
-- **Tenant-key constraint (load-bearing):** the write-side JWT claim and the
-  read-side OIDC identity MUST resolve to the *same* tenant string (a canonical
-  developer identifier, e.g. email). The per-developer Keycloak client therefore
-  emits that identifier as a claim. Mismatched keys silently break isolation —
-  a developer sees nothing, or sees everyone.
+- **Tenant-key constraint (load-bearing):** the write-side JWT and the read-side
+  OIDC token MUST resolve to the *same* tenant. The wire tenant is a **numeric
+  `tenant_id`** — VictoriaMetrics/VictoriaLogs tenants are 32-bit integers, so the
+  email cannot be the wire value; the email is the human identity and the basis for
+  assigning that number. Keycloak is the single source of truth: it stamps the same
+  `tenant_id` onto both the per-developer `client_credentials` ingest JWT (write)
+  and the Google-brokered Grafana login token (read). The gate also *requires* the
+  claim (`has(jwt.tenant_id)`) — a token without it is rejected, never merged into
+  another developer's tenant. Mismatched keys silently break isolation — a developer
+  sees nothing, or sees everyone.
 
 **5. Store consolidation.** Hosted runs one multi-tenant store per [[Signal]] —
 **VictoriaMetrics + VictoriaLogs + Tempo** — and drops Prometheus + Loki.
@@ -91,10 +97,14 @@ data.
   makes observability a third consumer of that shared realm (with Argo CD and
   agentregistry), enlarging the load-bearing blast radius foundation ADR 0023
   flagged: realm changes now affect all three.
-- **Tenant key:** the developer's **email**. Grafana receives it from the Google
-  OIDC login; a Keycloak protocol-mapper stamps the same email into each
-  developer's `client_credentials` ingest JWT, so the write-side and read-side
-  tenants match — satisfying the load-bearing constraint in decision (4).
+- **Tenant key:** the developer's **email** is the human identity; the **wire
+  tenant is a numeric `tenant_id`** mapped from it (VictoriaMetrics/VictoriaLogs
+  tenants are 32-bit integers — see decision (4)). A Keycloak protocol-mapper stamps
+  the same `tenant_id` into both the developer's `client_credentials` ingest JWT
+  (write) and their Google-brokered Grafana login token (read), so write-side and
+  read-side tenants match. *Refined during #186 implementation: the original "email
+  is the wire key" did not hold — the Victoria stores require numeric tenants, so
+  email maps to a numeric `tenant_id` that is the actual wire key.*
 
 ## Consequences
 

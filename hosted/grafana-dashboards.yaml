@@ -19,7 +19,9 @@ spec:
   project: workloads
   source:
     repoURL: https://github.com/origoss-labs/claude-agent-observability.git
-    targetRevision: main   # foundation multi-source app pins the revision
+    targetRevision: v0.1.0   # labs release tag. The foundation observability.yaml recurses
+                             # hosted/ and applies this child verbatim — it does NOT override
+                             # child revisions, so 'main' here would float past the release pin.
     path: manifests/dashboards
     directory:
       include: 'claude-code-victoriastack.configmap.yaml'

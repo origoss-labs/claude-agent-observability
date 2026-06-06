@@ -1,10 +1,11 @@
 # Traces store — HOSTED deployment (ADR 0004). Tempo monolithic single-binary
 # (NOT tempo-distributed). Stores traces on the local filesystem backend.
 #
-# Multitenancy is intentionally DISABLED in this slice (#185). Tempo with
-# multitenancyEnabled=true REQUIRES X-Scope-OrgID on every write/read and would reject
-# Alloy's header-less ingest (dropping all traces). Issue #186 turns it on together
-# with the X-Scope-OrgID routing in Alloy + the Grafana Tempo datasource.
+# Multitenancy is ENABLED (#186): Tempo with multitenancyEnabled=true requires
+# X-Scope-OrgID on every write/read and segregates traces per tenant. Alloy now stamps
+# X-Scope-OrgID (the numeric tenant_id from agentgateway) on its trace exporter, so the
+# header-less ingest that #185 relied on no longer happens. The per-tenant Grafana read
+# (Tempo datasource sending the logged-in user's X-Scope-OrgID) is wired in #187.
 #
 # OTLP gRPC :4317 (Alloy -> tempo:4317); query API :3200 (Grafana datasource).
 # Destination server: set by the foundation cluster's Argo CD multi-source app.
@@ -28,9 +29,11 @@ spec:
           enabled: true
           size: 20Gi
         tempo:
-          # Per-tenant isolation is enabled in #186 (it requires X-Scope-OrgID on every
-          # request); kept off here so #185's header-less ingest is accepted.
-          multitenancyEnabled: false
+          # Per-tenant isolation (#186): requires X-Scope-OrgID on every request. Alloy
+          # stamps it from the numeric tenant_id; requests without it land in the default
+          # tenant (the agentgateway gate rejects tokens lacking the tenant claim, so a
+          # header always reaches Tempo in the authenticated path).
+          multitenancyEnabled: true
           retention: 720h     # 30 days
           storage:
             trace:

@@ -1,13 +1,24 @@
 # Metrics store — HOSTED deployment (supersedes ADR 0003 for hosted only; see ADR 0004).
-# Single-binary VictoriaMetrics. Prometheus + Loki (the local dual-stack) are NOT
-# deployed here.
+# VictoriaMetrics CLUSTER (vminsert / vmselect / vmstorage). Prometheus + Loki (the
+# local dual-stack) are NOT deployed here.
 #
-# Multitenancy is intentionally NOT enabled in this slice (#185 = single stream, admin
-# view). Issue #186 enables --enableMultitenancy AND wires the matching X-Scope-OrgID
-# routing in Alloy + Grafana; enabling it here without that routing would misroute
-# headerless ingest into tenant 0.
+# Why cluster, not single-binary (#186): per-developer metric isolation needs
+# multitenancy, and multitenancy is a CLUSTER-ONLY feature in VictoriaMetrics — the
+# single-binary build (#185) silently ignores the tenant. vminsert/vmselect run with
+# `-enableMultitenancyViaHeaders` so the tenant is taken from the `AccountID` HTTP
+# header (added in VM v1.143.0) instead of the URL path. Alloy stamps that header from
+# the per-developer X-Scope-OrgID it receives from agentgateway (see hosted/alloy.yaml).
 #
-# Service DNS: victoriametrics.observability.svc.cluster.local:8428
+# Tenant identifier is the NUMERIC `tenant_id` claim minted by Keycloak (ADR 0004
+# decision 4) — VM tenants are 32-bit ints, so the developer's email cannot be the wire
+# value; it is the basis for assigning tenant_id, not the wire key itself.
+#
+# All components are replicaCount: 1 — this buys MULTITENANCY, not HA. Deliberate
+# footprint choice for ~16 developers; HA (replicas + anti-affinity) is deferred.
+#
+# Service DNS (pinned via per-component fullnameOverride):
+#   write  vminsert.observability.svc.cluster.local:8480  (OTLP ingest)
+#   read   vmselect.observability.svc.cluster.local:8481  (Grafana datasource)
 # Destination server: set by the foundation cluster's Argo CD multi-source app (see #185).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -20,21 +31,31 @@ spec:
   project: workloads
   source:
     repoURL: https://victoriametrics.github.io/helm-charts/
-    chart: victoria-metrics-single
-    targetRevision: "0.39.0"   # pinned; appVersion v1.144.0
+    chart: victoria-metrics-cluster
+    targetRevision: "0.43.0"   # pinned; appVersion v1.144.0
     helm:
       values: |
-        server:
-          fullnameOverride: victoriametrics   # -> Service victoriametrics:8428
+        # vminsert: ingestion. Header-based multitenancy -> tenant from `AccountID` header.
+        vminsert:
+          fullnameOverride: vminsert   # -> Service vminsert:8480
+          replicaCount: 1
+          extraArgs:
+            enableMultitenancyViaHeaders: "true"
+        # vmselect: queries. Same flag so reads honour the AccountID header (read-path
+        # per-tenant routing + the cross-tenant admin view are wired in #187).
+        vmselect:
+          fullnameOverride: vmselect   # -> Service vmselect:8481
+          replicaCount: 1
+          extraArgs:
+            enableMultitenancyViaHeaders: "true"
+        # vmstorage: durable store. 30-day rolling retention (ADR 0004).
+        vmstorage:
+          fullnameOverride: vmstorage   # -> Service vmstorage (8482/8401/8400)
+          replicaCount: 1
           retentionPeriod: "30d"
           persistentVolume:
             enabled: true
             size: 20Gi
-          extraArgs:
-            envflag.enable: "true"
-            envflag.prefix: VM_
-            loggerFormat: json
-            httpListenAddr: ":8428"
   destination:
     # Destination server is managed by the foundation cluster's Argo CD.
     # The parent multi-source Application overrides this; leave as placeholder.
