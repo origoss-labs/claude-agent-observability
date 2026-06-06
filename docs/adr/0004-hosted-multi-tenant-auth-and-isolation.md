@@ -80,8 +80,12 @@ Google-brokered token carries email but not Workspace groups (foundation ADR
 **5. Store consolidation.** Hosted runs one multi-tenant store per [[Signal]] —
 **VictoriaMetrics + VictoriaLogs + Tempo** — and drops Prometheus + Loki.
 Prometheus OSS is single-tenant and cannot enforce (4); this is why ADR 0003's
-dual-stack is superseded for hosted. The Prometheus-targeted community dashboards
-(25255, ColeMurray) are re-pointed to VictoriaMetrics.
+dual-stack is superseded for hosted. Hosted standardises on the VM-native **24640
+VictoriaStack** dashboard (dotted OTLP names, e.g. `claude_code.cost.usage`); the
+Prometheus-targeted community dashboards (25255, and the normalised-name panels of
+ColeMurray) query names like `claude_code_cost_usage_USD_total` that do not exist in the
+dotted ingest, so they stay **local-only** rather than being rewritten (#188 — one
+ingest = one naming; 24640 is the curated dashboard).
 
 **6. Content & governance.** Prompt and tool-content bodies are **off**
 (`OTEL_LOG_USER_PROMPTS` / `OTEL_LOG_TOOL_CONTENT` unset in managed settings). The
