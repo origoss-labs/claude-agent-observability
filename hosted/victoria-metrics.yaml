@@ -13,6 +13,9 @@
 # decision 4) — VM tenants are 32-bit ints, so the developer's email cannot be the wire
 # value; it is the basis for assigning tenant_id, not the wire key itself.
 #
+# All components are replicaCount: 1 — this buys MULTITENANCY, not HA. Deliberate
+# footprint choice for ~16 developers; HA (replicas + anti-affinity) is deferred.
+#
 # Service DNS (pinned via per-component fullnameOverride):
 #   write  vminsert.observability.svc.cluster.local:8480  (OTLP ingest)
 #   read   vmselect.observability.svc.cluster.local:8481  (Grafana datasource)

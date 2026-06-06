@@ -63,6 +63,10 @@ spec:
               # prometheus path is a TENANT-0 PLACEHOLDER: read-path tenancy (per-developer
               # routing + the cross-tenant admin datasource) is #187. Until then this points
               # at the empty default tenant — real data lives in per-developer tenants.
+              # NOTE for #187: a tenant in the URL path OVERRIDES the AccountID header (VM
+              # ignores the header when the path carries a tenant), so #187 must switch to
+              # the header-driven path /select/prometheus (drop the /0/), not layer a header
+              # on top of this URL.
               - name: VictoriaMetrics
                 uid: vmetrics
                 type: victoriametrics-metrics-datasource

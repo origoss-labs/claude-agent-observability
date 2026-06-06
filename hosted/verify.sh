@@ -171,7 +171,7 @@ persistence:
   enabled: true
   size: 20Gi
 tempo:
-  multitenancyEnabled: false
+  multitenancyEnabled: true
   retention: 720h
   storage:
     trace:
@@ -253,7 +253,7 @@ datasources:
         uid: vmetrics
         type: victoriametrics-metrics-datasource
         access: proxy
-        url: http://victoriametrics.observability.svc.cluster.local:8428
+        url: http://vmselect.observability.svc.cluster.local:8481/select/0/prometheus
         isDefault: true
       - name: VictoriaLogs
         uid: vlogs
