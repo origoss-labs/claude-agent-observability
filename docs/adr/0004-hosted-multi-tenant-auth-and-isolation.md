@@ -56,9 +56,16 @@ Google-brokered token carries email but not Workspace groups (foundation ADR
   developer's `tenant_id` claim; Alloy (`include_metadata` + batch `metadata_keys`
   + `otelcol.auth.headers`) forwards it to the stores — relabelled to `AccountID`
   for VictoriaMetrics/VictoriaLogs, whose tenants are numeric (see constraint below).
-- *Read*: Grafana forwards the logged-in user's OIDC identity to a read proxy
-  that injects the matching `X-Scope-OrgID`; a separate `Admin` datasource reads
-  cross-tenant for the aggregate view.
+- *Read* (#187): Grafana OSS cannot inject a per-user tenant header (datasource
+  headers are static), so all reads go through `agentgateway-obs-read` — a 2nd
+  standalone agentgateway instance. Grafana forwards the user's Keycloak token
+  (datasource `oauthPassThru`); the proxy validates it and `set`s the store tenant
+  header from the token's `tenant_id` — Developer to their own tenant, Admin (email
+  allowlist) to cross-tenant (VM `/select/multitenant`, Tempo pipe-list). The proxy is
+  the SOLE enforcement point (one set of datasources, role-scoped per token, not Grafana
+  datasource permissions which are Enterprise-only), and a `deny` rule blocks non-admins
+  from any path-embedded tenant (VM ignores the AccountID header when the path carries a
+  tenant). Logs admin cross-tenant is deferred — VictoriaLogs has no `/select/multitenant`.
 - **Tenant-key constraint (load-bearing):** the write-side JWT and the read-side
   OIDC token MUST resolve to the *same* tenant. The wire tenant is a **numeric
   `tenant_id`** — VictoriaMetrics/VictoriaLogs tenants are 32-bit integers, so the
