@@ -9,26 +9,31 @@ the decisions behind the component choices and the GitOps approach.
 
 ## Architecture
 
+Two parallel stacks share only the ingest gateway and Grafana, so two community
+dashboards each run on their native backend — see [ADR 0003](docs/adr/0003-two-parallel-stacks.md).
+
 ```
- Laptop (same machine)                kind cluster (single node)
- ┌────────────────────┐               ┌──────────────────────────────────────┐
- │ claude (CLI)        │   OTLP gRPC   │  Alloy (OTLP gateway :4317/:4318)      │
- │  telemetry on       │──:4317───────▶│    ├─ traces  ─────────▶ Tempo  (fs/PVC)│
- │  beta traces on     │ via kind      │    ├─ logs    ─────────▶ Loki   (fs/PVC)│
- │  content flags on   │ extraPortMaps │    └─ metrics ─remote_write▶ VictoriaMetrics (PVC)
- └────────────────────┘               │                                        │
-                                       │  Grafana (:3000) ◀─ datasources + dashboards
-                                       │  Argo CD ◀─ app-of-apps ◀─ GitHub repo  │
-                                       └──────────────────────────────────────┘
+ Laptop (same machine)        kind cluster (single node)
+ ┌──────────────────┐         ┌──────────────────────────────────────────────────┐
+ │ claude (CLI)      │ OTLP    │  Alloy (OTLP gateway :4317/:4318) — SHARED         │
+ │  telemetry on     │─:4317──▶│    ├─ traces  ───────────────▶ Tempo  (shared)     │
+ │  beta traces on   │ via kind│    ├─ logs    ──┬──▶ Loki          (Prometheus stack)│
+ │  content flags on │ portMaps│    │           └──▶ VictoriaLogs   (Victoria  stack)│
+ └──────────────────┘         │    └─ metrics ──┬──▶ Prometheus    (Prometheus stack)│
+                              │                  └──▶ VictoriaMetrics (Victoria stack)│
+                              │  Grafana (:3000) ◀─ 5 datasources + 3 dashboards — SHARED
+                              │  Argo CD ◀─ app-of-apps ◀─ GitHub repo              │
+                              └──────────────────────────────────────────────────┘
 ```
 
-| Signal  | Store           | Ingest | Viz     |
-|---------|-----------------|--------|---------|
-| Traces  | Grafana Tempo   | Alloy  | Grafana |
-| Logs    | Grafana Loki    | Alloy  | Grafana |
-| Metrics | VictoriaMetrics | Alloy  | Grafana |
+| Stack      | Metrics         | Logs         | Dashboards         |
+|------------|-----------------|--------------|--------------------|
+| Prometheus | Prometheus      | Loki         | 25255, ColeMurray  |
+| Victoria   | VictoriaMetrics | VictoriaLogs | 24640              |
 
-Deployed via **Argo CD** (app-of-apps) syncing from this Git remote.
+Shared by both: **Alloy** (ingest — forced, Claude has one OTLP endpoint), **Tempo**
+(traces / trace→log correlation), **Grafana** (5 datasources). Deployed via **Argo CD**
+(app-of-apps) syncing from this Git remote.
 
 ## Prerequisites
 
@@ -70,8 +75,9 @@ export OTEL_LOG_TOOL_CONTENT=1                 # capture tool input/output
 export OTEL_METRIC_EXPORT_INTERVAL=10000       # 10s, faster feedback while testing
 ```
 
-Run `claude`, do some work, then check Grafana Explore (Tempo for the trace
-waterfall, Loki for prompts/events, VictoriaMetrics for token/cost metrics).
+Run `claude`, do some work, then open the three dashboards (Claude Code dashboards
+appear in Grafana's dashboard list), or use Explore (Tempo for the trace waterfall,
+Loki/VictoriaLogs for prompts/events, Prometheus/VictoriaMetrics for token/cost).
 
 ### Argo CD UI (optional)
 
@@ -133,8 +139,10 @@ Also resolved:
   Argo CD pinned to `v3.4.3`.
 - ✅ **Client-agnostic metrics** — Alloy runs `otelcol.processor.deltatocumulative`,
   so metrics land even from clients that don't set the cumulative env var.
-- ✅ **Reproducible dashboard** — `scripts/adapt-dashboard.rb` regenerates the
-  ConfigMap from the vendored `dashboards/upstream/` JSON.
+- ✅ **Reproducible dashboards** — `scripts/adapt-{colemurray,24640,25255}.rb`
+  regenerate each ConfigMap from the vendored `dashboards/upstream/` JSON.
+- ✅ **Two community dashboards added** — 24640 (VictoriaStack) + 25255 (Prometheus),
+  each on its native stack; see [ADR 0003](docs/adr/0003-two-parallel-stacks.md).
 
 Still open:
 

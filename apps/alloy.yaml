@@ -1,6 +1,8 @@
-# Ingest gateway. Single OTLP endpoint; fans out traces->Tempo, logs->Loki,
-# metrics->VictoriaMetrics. Exposed to the laptop via a NodePort Service
-# (manifests/networking/alloy-otlp-nodeport.yaml) mapped to localhost:4317/:4318.
+# Ingest gateway. Single OTLP endpoint (the one component, besides Grafana, shared
+# by both stacks). Fans out: metrics->VictoriaMetrics (dotted) + Prometheus
+# (normalised); logs->Loki + VictoriaLogs; traces->Tempo. Exposed to the laptop via
+# a NodePort Service (manifests/networking/alloy-otlp-nodeport.yaml) at
+# localhost:4317/:4318.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -52,31 +54,46 @@ spec:
               otelcol.processor.batch "default" {
                 output {
                   metrics = [otelcol.processor.deltatocumulative.default.input]
-                  logs    = [otelcol.exporter.loki.default.input]
+                  // logs fan out to BOTH stacks' log stores
+                  logs    = [
+                    otelcol.exporter.loki.default.input,            // Prometheus stack
+                    otelcol.exporter.otlphttp.victorialogs.input,   // Victoria stack
+                  ]
                   traces  = [otelcol.exporter.otlp.tempo.input]
                 }
               }
 
-              // delta -> cumulative: Claude exports delta-temporality metrics; the
-              // Prometheus/VM remote_write path needs cumulative.
+              // delta -> cumulative: Claude exports delta-temporality metrics; both VM's
+              // OTLP ingest and the Prometheus OTLP receiver want cumulative.
               otelcol.processor.deltatocumulative "default" {
                 output {
-                  metrics = [otelcol.exporter.prometheus.vm.input]
+                  // one cumulative stream, fanned to BOTH metrics stores
+                  metrics = [
+                    otelcol.exporter.otlphttp.vmnative.input,       // Victoria stack: dotted names
+                    otelcol.exporter.otlphttp.prometheus.input,     // Prometheus stack: normalised
+                  ]
                 }
               }
 
-              // metrics -> VictoriaMetrics. Names normalised to Prometheus form
-              // here (dots->underscores, _total/unit suffixes).
-              otelcol.exporter.prometheus "vm" {
-                forward_to = [prometheus.remote_write.vm.receiver]
-              }
-              prometheus.remote_write "vm" {
-                endpoint {
-                  url = "http://victoriametrics.observability.svc.cluster.local:8428/api/v1/write"
+              // metrics -> VictoriaMetrics, OTLP-native. VM keeps dotted OTLP names
+              // (claude_code.token.usage) — what the 24640 VictoriaStack dashboard queries.
+              otelcol.exporter.otlphttp "vmnative" {
+                client {
+                  endpoint = "http://victoriametrics.observability.svc.cluster.local:8428/opentelemetry"
+                  tls { insecure = true }
                 }
               }
 
-              // logs -> Loki
+              // metrics -> Prometheus, native OTLP receiver. Prometheus normalises to
+              // claude_code_token_usage_tokens_total etc. — what 25255 + ColeMurray query.
+              otelcol.exporter.otlphttp "prometheus" {
+                client {
+                  endpoint = "http://prometheus-server.observability.svc.cluster.local:9090/api/v1/otlp"
+                  tls { insecure = true }
+                }
+              }
+
+              // logs -> Loki (Prometheus stack + Tempo trace->log correlation)
               otelcol.exporter.loki "default" {
                 forward_to = [loki.write.default.receiver]
               }
@@ -86,7 +103,15 @@ spec:
                 }
               }
 
-              // traces -> Tempo (OTLP gRPC)
+              // logs -> VictoriaLogs, OTLP-native (attributes become VL fields; Victoria stack)
+              otelcol.exporter.otlphttp "victorialogs" {
+                client {
+                  endpoint = "http://victorialogs.observability.svc.cluster.local:9428/insert/opentelemetry"
+                  tls { insecure = true }
+                }
+              }
+
+              // traces -> Tempo (OTLP gRPC), single shared store
               otelcol.exporter.otlp "tempo" {
                 client {
                   endpoint = "tempo.observability.svc.cluster.local:4317"

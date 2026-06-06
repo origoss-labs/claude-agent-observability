@@ -1,0 +1,41 @@
+# Logs store for the VICTORIA stack (serves the 24640 dashboard's log/event panels,
+# which query VictoriaLogs via LogsQL). Single-node VictoriaLogs: one binary, local
+# disk, no object storage. Alloy pushes OTLP-native logs here so OTLP attributes
+# land as queryable VL fields (model, tool_name, duration_ms, ...).
+#
+# Loki (apps/loki.yaml) stays for the Prometheus stack + Tempo trace->log
+# correlation; the two log stores coexist, fed by the one shared Alloy.
+#
+# Service DNS used by Alloy (push) + Grafana (query):
+#   victorialogs.observability.svc.cluster.local:9428
+# OTLP ingest path: /insert/opentelemetry/v1/logs
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: victoria-logs
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://victoriametrics.github.io/helm-charts/
+    chart: victoria-logs-single
+    targetRevision: "0.13.6"   # appVersion VictoriaLogs v1.50.0
+    helm:
+      values: |
+        server:
+          fullnameOverride: victorialogs   # -> Service victorialogs:9428
+          retentionPeriod: "3d"
+          persistentVolume:
+            enabled: true
+            size: 5Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

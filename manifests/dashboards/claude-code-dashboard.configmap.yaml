@@ -1,9 +1,10 @@
 # Claude Code Observability dashboard — adapted from ColeMurray/claude-code-otel.
-# Two mechanical changes from upstream, verified against a live `claude -p` run:
+# PROMETHEUS stack. Two mechanical changes from upstream, verified against a live
+# `claude -p` run:
 #   - metric panels: job="otel-collector" -> job="claude-code" (our service.name)
-#   - datasource uids -> victoriametrics / loki / tempo (our provisioned uids)
+#   - datasource uids -> prometheus / loki / tempo (our provisioned uids)
 # Loki panels were already correct (service_name="claude-code" label exists).
-# Regenerate with: ruby scripts/adapt-dashboard.rb
+# Regenerate with: ruby scripts/adapt-colemurray.rb
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -24,7 +25,7 @@ data:
     \"\U0001F4CA Overview\",\n      \"type\": \"row\",\n      \"gridPos\": {\n        \"h\":
     1,\n        \"w\": 24,\n        \"x\": 0,\n        \"y\": 0\n      },\n      \"collapsed\":
     false\n    },\n    {\n      \"datasource\": {\n        \"type\": \"prometheus\",\n
-    \       \"uid\": \"victoriametrics\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
+    \       \"uid\": \"prometheus\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
     {\n          \"color\": {\n            \"mode\": \"thresholds\"\n          },\n
     \         \"mappings\": [\n\n          ],\n          \"thresholds\": {\n            \"mode\":
     \"absolute\",\n            \"steps\": [\n              {\n                \"color\":
@@ -39,12 +40,12 @@ data:
     \"auto\",\n        \"reduceOptions\": {\n          \"values\": false,\n          \"calcs\":
     [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\"\n        },\n
     \       \"textMode\": \"auto\"\n      },\n      \"targets\": [\n        {\n          \"datasource\":
-    {\n            \"type\": \"prometheus\",\n            \"uid\": \"victoriametrics\"\n
+    {\n            \"type\": \"prometheus\",\n            \"uid\": \"prometheus\"\n
     \         },\n          \"expr\": \"sum(increase(claude_code_session_count_total{job=\\\"claude-code\\\"}[1h]))\",\n
     \         \"interval\": \"\",\n          \"legendFormat\": \"Sessions (1h)\",\n
     \         \"refId\": \"A\"\n        }\n      ],\n      \"title\": \"Active Sessions
     (1h)\",\n      \"type\": \"stat\"\n    },\n    {\n      \"datasource\": {\n        \"type\":
-    \"prometheus\",\n        \"uid\": \"victoriametrics\"\n      },\n      \"fieldConfig\":
+    \"prometheus\",\n        \"uid\": \"prometheus\"\n      },\n      \"fieldConfig\":
     {\n        \"defaults\": {\n          \"color\": {\n            \"mode\": \"thresholds\"\n
     \         },\n          \"mappings\": [\n\n          ],\n          \"thresholds\":
     {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n
@@ -59,12 +60,12 @@ data:
     \"auto\",\n        \"reduceOptions\": {\n          \"values\": false,\n          \"calcs\":
     [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\"\n        },\n
     \       \"textMode\": \"auto\"\n      },\n      \"targets\": [\n        {\n          \"datasource\":
-    {\n            \"type\": \"prometheus\",\n            \"uid\": \"victoriametrics\"\n
+    {\n            \"type\": \"prometheus\",\n            \"uid\": \"prometheus\"\n
     \         },\n          \"expr\": \"sum(increase(claude_code_cost_usage_USD_total{job=\\\"claude-code\\\"}[1h]))\",\n
     \         \"interval\": \"\",\n          \"legendFormat\": \"Cost (1h)\",\n          \"refId\":
     \"A\"\n        }\n      ],\n      \"title\": \"Cost (Last Hour)\",\n      \"type\":
     \"stat\"\n    },\n    {\n      \"datasource\": {\n        \"type\": \"prometheus\",\n
-    \       \"uid\": \"victoriametrics\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
+    \       \"uid\": \"prometheus\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
     {\n          \"color\": {\n            \"mode\": \"thresholds\"\n          },\n
     \         \"mappings\": [\n\n          ],\n          \"thresholds\": {\n            \"mode\":
     \"absolute\",\n            \"steps\": [\n              {\n                \"color\":
@@ -79,12 +80,12 @@ data:
     \"auto\",\n        \"reduceOptions\": {\n          \"values\": false,\n          \"calcs\":
     [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\"\n        },\n
     \       \"textMode\": \"auto\"\n      },\n      \"targets\": [\n        {\n          \"datasource\":
-    {\n            \"type\": \"prometheus\",\n            \"uid\": \"victoriametrics\"\n
+    {\n            \"type\": \"prometheus\",\n            \"uid\": \"prometheus\"\n
     \         },\n          \"expr\": \"sum(increase(claude_code_token_usage_tokens_total{job=\\\"claude-code\\\"}[1h]))\",\n
     \         \"interval\": \"\",\n          \"legendFormat\": \"Tokens (1h)\",\n
     \         \"refId\": \"A\"\n        }\n      ],\n      \"title\": \"Token Usage
     (1h)\",\n      \"type\": \"stat\"\n    },\n    {\n      \"datasource\": {\n        \"type\":
-    \"prometheus\",\n        \"uid\": \"victoriametrics\"\n      },\n      \"fieldConfig\":
+    \"prometheus\",\n        \"uid\": \"prometheus\"\n      },\n      \"fieldConfig\":
     {\n        \"defaults\": {\n          \"color\": {\n            \"mode\": \"thresholds\"\n
     \         },\n          \"mappings\": [\n\n          ],\n          \"thresholds\":
     {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n
@@ -100,14 +101,14 @@ data:
     false,\n          \"calcs\": [\n            \"lastNotNull\"\n          ],\n          \"fields\":
     \"\"\n        },\n        \"textMode\": \"auto\"\n      },\n      \"targets\":
     [\n        {\n          \"datasource\": {\n            \"type\": \"prometheus\",\n
-    \           \"uid\": \"victoriametrics\"\n          },\n          \"expr\": \"sum(increase(claude_code_lines_of_code_count_total{job=\\\"claude-code\\\"}[1h]))\",\n
+    \           \"uid\": \"prometheus\"\n          },\n          \"expr\": \"sum(increase(claude_code_lines_of_code_count_total{job=\\\"claude-code\\\"}[1h]))\",\n
     \         \"interval\": \"\",\n          \"legendFormat\": \"Lines Changed (1h)\",\n
     \         \"refId\": \"A\"\n        }\n      ],\n      \"title\": \"Lines of Code
     (1h)\",\n      \"type\": \"stat\"\n    },\n    {\n      \"title\": \"\U0001F4B0
     Cost & Usage Analysis\",\n      \"type\": \"row\",\n      \"gridPos\": {\n        \"h\":
     1,\n        \"w\": 24,\n        \"x\": 0,\n        \"y\": 5\n      },\n      \"collapsed\":
     false\n    },\n    {\n      \"datasource\": {\n        \"type\": \"prometheus\",\n
-    \       \"uid\": \"victoriametrics\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
+    \       \"uid\": \"prometheus\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
     {\n          \"color\": {\n            \"mode\": \"palette-classic\"\n          },\n
     \         \"custom\": {\n            \"axisLabel\": \"USD\",\n            \"axisPlacement\":
     \"auto\",\n            \"barAlignment\": 0,\n            \"drawStyle\": \"line\",\n
@@ -131,11 +132,11 @@ data:
     \"bottom\"\n        },\n        \"tooltip\": {\n          \"mode\": \"multi\",\n
     \         \"sort\": \"desc\"\n        }\n      },\n      \"targets\": [\n        {\n
     \         \"datasource\": {\n            \"type\": \"prometheus\",\n            \"uid\":
-    \"victoriametrics\"\n          },\n          \"expr\": \"sum by (model) (increase(claude_code_cost_usage_USD_total{job=\\\"claude-code\\\"}[1h]))\",\n
+    \"prometheus\"\n          },\n          \"expr\": \"sum by (model) (increase(claude_code_cost_usage_USD_total{job=\\\"claude-code\\\"}[1h]))\",\n
     \         \"interval\": \"\",\n          \"legendFormat\": \"{{model}}\",\n          \"refId\":
     \"A\"\n        }\n      ],\n      \"title\": \"Cost by Model (Hourly)\",\n      \"type\":
     \"timeseries\"\n    },\n    {\n      \"datasource\": {\n        \"type\": \"prometheus\",\n
-    \       \"uid\": \"victoriametrics\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
+    \       \"uid\": \"prometheus\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
     {\n          \"color\": {\n            \"mode\": \"palette-classic\"\n          },\n
     \         \"custom\": {\n            \"axisLabel\": \"Tokens (log scale)\",\n
     \           \"axisPlacement\": \"auto\",\n            \"barAlignment\": 0,\n            \"drawStyle\":
@@ -183,11 +184,11 @@ data:
     \"bottom\"\n        },\n        \"tooltip\": {\n          \"mode\": \"multi\",\n
     \         \"sort\": \"desc\"\n        }\n      },\n      \"targets\": [\n        {\n
     \         \"datasource\": {\n            \"type\": \"prometheus\",\n            \"uid\":
-    \"victoriametrics\"\n          },\n          \"expr\": \"sum by (type) (rate(claude_code_token_usage_tokens_total{job=\\\"claude-code\\\"}[5m])
+    \"prometheus\"\n          },\n          \"expr\": \"sum by (type) (rate(claude_code_token_usage_tokens_total{job=\\\"claude-code\\\"}[5m])
     * 60)\",\n          \"interval\": \"\",\n          \"legendFormat\": \"{{type}}\",\n
     \         \"refId\": \"A\"\n        }\n      ],\n      \"title\": \"Token Usage
     Rate by Type\",\n      \"type\": \"timeseries\"\n    },\n    {\n      \"datasource\":
-    {\n        \"type\": \"prometheus\",\n        \"uid\": \"victoriametrics\"\n      },\n
+    {\n        \"type\": \"prometheus\",\n        \"uid\": \"prometheus\"\n      },\n
     \     \"fieldConfig\": {\n        \"defaults\": {\n          \"color\": {\n            \"mode\":
     \"palette-classic\"\n          },\n          \"custom\": {\n            \"axisLabel\":
     \"Requests\",\n            \"axisPlacement\": \"auto\",\n            \"barAlignment\":
@@ -223,7 +224,7 @@ data:
     \"bottom\"\n        },\n        \"tooltip\": {\n          \"mode\": \"multi\",\n
     \         \"sort\": \"desc\"\n        }\n      },\n      \"targets\": [\n        {\n
     \         \"datasource\": {\n            \"type\": \"prometheus\",\n            \"uid\":
-    \"victoriametrics\"\n          },\n          \"expr\": \"sum by (model) (changes(claude_code_cost_usage_USD_total{job=\\\"claude-code\\\"}[5m]))\",\n
+    \"prometheus\"\n          },\n          \"expr\": \"sum by (model) (changes(claude_code_cost_usage_USD_total{job=\\\"claude-code\\\"}[5m]))\",\n
     \         \"interval\": \"\",\n          \"legendFormat\": \"{{model}}\",\n          \"refId\":
     \"A\"\n        }\n      ],\n      \"title\": \"API Requests by Model (5min rate)\",\n
     \     \"type\": \"timeseries\"\n    },\n    {\n      \"title\": \"\U0001F527 Tool
@@ -423,8 +424,8 @@ data:
     \     \"type\": \"row\",\n      \"gridPos\": {\n        \"h\": 1,\n        \"w\":
     24,\n        \"x\": 0,\n        \"y\": 48\n      },\n      \"collapsed\": false\n
     \   },\n    {\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\":
-    \"victoriametrics\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
-    {\n          \"color\": {\n            \"mode\": \"palette-classic\"\n          },\n
+    \"prometheus\"\n      },\n      \"fieldConfig\": {\n        \"defaults\": {\n
+    \         \"color\": {\n            \"mode\": \"palette-classic\"\n          },\n
     \         \"custom\": {\n            \"axisLabel\": \"\",\n            \"axisPlacement\":
     \"auto\",\n            \"barAlignment\": 0,\n            \"drawStyle\": \"line\",\n
     \           \"fillOpacity\": 10,\n            \"gradientMode\": \"none\",\n            \"hideFrom\":
@@ -446,12 +447,12 @@ data:
     \"table\",\n          \"placement\": \"bottom\"\n        },\n        \"tooltip\":
     {\n          \"mode\": \"multi\",\n          \"sort\": \"desc\"\n        }\n      },\n
     \     \"targets\": [\n        {\n          \"datasource\": {\n            \"type\":
-    \"prometheus\",\n            \"uid\": \"victoriametrics\"\n          },\n          \"expr\":
+    \"prometheus\",\n            \"uid\": \"prometheus\"\n          },\n          \"expr\":
     \"sum by (type) (rate(claude_code_lines_of_code_count_total{job=\\\"claude-code\\\"}[5m])
     * 60)\",\n          \"interval\": \"\",\n          \"legendFormat\": \"{{type}}
     lines/min\",\n          \"refId\": \"A\"\n        }\n      ],\n      \"title\":
     \"Code Changes Rate\",\n      \"type\": \"timeseries\"\n    },\n    {\n      \"datasource\":
-    {\n        \"type\": \"prometheus\",\n        \"uid\": \"victoriametrics\"\n      },\n
+    {\n        \"type\": \"prometheus\",\n        \"uid\": \"prometheus\"\n      },\n
     \     \"fieldConfig\": {\n        \"defaults\": {\n          \"color\": {\n            \"mode\":
     \"palette-classic\"\n          },\n          \"custom\": {\n            \"axisLabel\":
     \"\",\n            \"axisPlacement\": \"auto\",\n            \"barAlignment\":
@@ -474,12 +475,12 @@ data:
     \"table\",\n          \"placement\": \"bottom\"\n        },\n        \"tooltip\":
     {\n          \"mode\": \"multi\",\n          \"sort\": \"desc\"\n        }\n      },\n
     \     \"targets\": [\n        {\n          \"datasource\": {\n            \"type\":
-    \"prometheus\",\n            \"uid\": \"victoriametrics\"\n          },\n          \"expr\":
+    \"prometheus\",\n            \"uid\": \"prometheus\"\n          },\n          \"expr\":
     \"sum(increase(claude_code_commit_count_total{job=\\\"claude-code\\\"}[1h])) or
     vector(0)\",\n          \"interval\": \"\",\n          \"legendFormat\": \"Commits\",\n
     \         \"refId\": \"A\"\n        },\n        {\n          \"datasource\": {\n
-    \           \"type\": \"prometheus\",\n            \"uid\": \"victoriametrics\"\n
-    \         },\n          \"expr\": \"sum(increase(claude_code_pull_request_count_total{job=\\\"claude-code\\\"}[1h]))
+    \           \"type\": \"prometheus\",\n            \"uid\": \"prometheus\"\n          },\n
+    \         \"expr\": \"sum(increase(claude_code_pull_request_count_total{job=\\\"claude-code\\\"}[1h]))
     or vector(0)\",\n          \"interval\": \"\",\n          \"legendFormat\": \"Pull
     Requests\",\n          \"refId\": \"B\"\n        }\n      ],\n      \"title\":
     \"Development Activity (Hourly)\",\n      \"type\": \"timeseries\"\n    },\n    {\n

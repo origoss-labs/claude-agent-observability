@@ -1,7 +1,9 @@
-# Visualisation. Datasources provisioned for all three stores, with Tempo wired
-# for trace->logs (Loki) and trace->metrics (VM) correlation. Dashboards are
-# loaded by the sidecar from any ConfigMap labelled grafana_dashboard=1
-# (see manifests/dashboards/). UI on localhost:3000 via NodePort 30300.
+# Visualisation — the one component (besides Alloy's ingest) shared by both stacks.
+# Datasources: Prometheus + Loki (Prometheus stack), VictoriaMetrics + VictoriaLogs
+# (Victoria stack, via VM datasource plugins), and a shared Tempo wired for
+# trace->logs (Loki) and trace->metrics (Prometheus). Dashboards load from any
+# ConfigMap labelled grafana_dashboard=1 (see manifests/dashboards/).
+# UI on localhost:3000 via NodePort 30300.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -20,6 +22,10 @@ spec:
         fullnameOverride: grafana
         adminUser: admin
         adminPassword: admin        # local-only v1 convenience; do not ship
+        # VM datasource plugins for the Victoria stack (24640 dashboard)
+        plugins:
+          - victoriametrics-metrics-datasource
+          - victoriametrics-logs-datasource
         persistence:
           enabled: false            # everything is provisioned from Git
         service:
@@ -35,17 +41,30 @@ spec:
           datasources.yaml:
             apiVersion: 1
             datasources:
-              - name: VictoriaMetrics
-                uid: victoriametrics
+              # --- Prometheus stack (25255 + ColeMurray) ---
+              - name: Prometheus
+                uid: prometheus
                 type: prometheus
                 access: proxy
-                url: http://victoriametrics.observability.svc.cluster.local:8428
+                url: http://prometheus-server.observability.svc.cluster.local:9090
                 isDefault: true
               - name: Loki
                 uid: loki
                 type: loki
                 access: proxy
                 url: http://loki.observability.svc.cluster.local:3100
+              # --- Victoria stack (24640), via VM datasource plugins ---
+              - name: VictoriaMetrics
+                uid: vmetrics
+                type: victoriametrics-metrics-datasource
+                access: proxy
+                url: http://victoriametrics.observability.svc.cluster.local:8428
+              - name: VictoriaLogs
+                uid: vlogs
+                type: victoriametrics-logs-datasource
+                access: proxy
+                url: http://victorialogs.observability.svc.cluster.local:9428
+              # --- shared ---
               - name: Tempo
                 uid: tempo
                 type: tempo
@@ -58,9 +77,9 @@ spec:
                     spanStartTimeShift: "-1h"
                     spanEndTimeShift: "1h"
                   tracesToMetrics:
-                    datasourceUid: victoriametrics
+                    datasourceUid: prometheus
                   serviceMap:
-                    datasourceUid: victoriametrics
+                    datasourceUid: prometheus
   destination:
     server: https://kubernetes.default.svc
     namespace: observability

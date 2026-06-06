@@ -4,7 +4,9 @@ Date: 2026-06-05
 
 ## Status
 
-Accepted
+Accepted — superseded in part by [ADR 0003](0003-two-parallel-stacks.md), which adds
+a parallel Prometheus + VictoriaLogs stack (and the VM datasource plugins) so two
+community dashboards run on their native backends.
 
 ## Context
 

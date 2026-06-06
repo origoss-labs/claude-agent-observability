@@ -1,7 +1,9 @@
-# Metrics store. Single-node VictoriaMetrics: one binary, local disk, no object
-# storage. Alloy remote_writes Prometheus-normalised metrics here.
+# Metrics store for the VICTORIA stack (serves the 24640 VictoriaStack dashboard).
+# Single-node VictoriaMetrics: one binary, local disk, no object storage. Alloy
+# pushes OTLP-native metrics here; VM keeps the dotted OTLP names by default
+# (claude_code.token.usage), which 24640 queries via the VM datasource plugin.
 #
-# Service DNS used by Alloy + Grafana: victoriametrics.observability:8428
+# Service DNS used by Alloy (push) + Grafana (query): victoriametrics.observability:8428
 # (headless service, named by server.fullnameOverride below).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -24,7 +26,8 @@ spec:
           persistentVolume:
             enabled: true
             size: 5Gi
-          # VM accepts OTel->Prometheus remote_write at /api/v1/write out of the box.
+          # VM ingests OTLP at /opentelemetry/v1/metrics out of the box and keeps
+          # dotted names (usePrometheusNaming defaults off).
   destination:
     server: https://kubernetes.default.svc
     namespace: observability

@@ -1,10 +1,17 @@
 require 'json'
 require 'yaml'
 
+# ColeMurray/claude-code-otel dashboard. PROMETHEUS stack: metric panels query
+# Prometheus-normalised names against our Prometheus datasource; log panels query
+# Loki. Two mechanical changes from upstream, verified against a live `claude -p` run:
+#   - metric panels: job="otel-collector" -> job="claude-code" (Prometheus OTLP
+#     receiver sets job from service.name)
+#   - datasource uids -> prometheus / loki / tempo (our provisioned uids)
+
 d = JSON.parse(File.read('dashboards/upstream/colemurray-claude-code-dashboard.json'))
 
 # our provisioned datasource uids, keyed by datasource type
-UID = { 'prometheus' => 'victoriametrics', 'loki' => 'loki', 'tempo' => 'tempo' }
+UID = { 'prometheus' => 'prometheus', 'loki' => 'loki', 'tempo' => 'tempo' }
 
 def walk(o)
   case o
@@ -41,11 +48,12 @@ cm = {
 
 header = <<~TXT
   # Claude Code Observability dashboard — adapted from ColeMurray/claude-code-otel.
-  # Two mechanical changes from upstream, verified against a live `claude -p` run:
+  # PROMETHEUS stack. Two mechanical changes from upstream, verified against a live
+  # `claude -p` run:
   #   - metric panels: job="otel-collector" -> job="claude-code" (our service.name)
-  #   - datasource uids -> victoriametrics / loki / tempo (our provisioned uids)
+  #   - datasource uids -> prometheus / loki / tempo (our provisioned uids)
   # Loki panels were already correct (service_name="claude-code" label exists).
-  # Regenerate with: ruby scripts/adapt-dashboard.rb
+  # Regenerate with: ruby scripts/adapt-colemurray.rb
 TXT
 
 File.write('manifests/dashboards/claude-code-dashboard.configmap.yaml', header + cm.to_yaml)

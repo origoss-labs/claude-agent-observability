@@ -1,0 +1,88 @@
+# Metrics store for the PROMETHEUS stack (serves the 25255 + ColeMurray dashboards,
+# which are authored against Prometheus-normalised metric names). Real Prometheus,
+# not VM: the two stacks are deliberately separate and share only Grafana.
+#
+# Alloy pushes OTLP here (no scraping) via the native OTLP receiver at
+# /api/v1/otlp/v1/metrics; Prometheus normalises OTLP names to Prometheus form
+# (dots->underscores, _total/unit suffixes) so the dashboards match unmodified.
+#
+# Service DNS used by Alloy (push) + Grafana (query):
+#   prometheus-server.observability.svc.cluster.local:9090
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: prometheus
+    targetRevision: "29.10.0"   # appVersion Prometheus v3.12.0 (native OTLP receiver)
+    helm:
+      values: |
+        # OTLP push only: disable the bundled scrape ecosystem.
+        alertmanager:
+          enabled: false
+        kube-state-metrics:
+          enabled: false
+        prometheus-node-exporter:
+          enabled: false
+        prometheus-pushgateway:
+          enabled: false
+        # The chart renders scrape_configs from this top-level `scrapeConfigs` map
+        # (NOT from serverFiles). Disable every default job so Prometheus is a pure
+        # OTLP-push sink (no kubernetes scraping). Setting serverFiles.prometheus.yml
+        # .scrape_configs here instead would emit a SECOND scrape_configs key and
+        # crash Prometheus with "field scrape_configs already set".
+        scrapeConfigs:
+          prometheus:
+            enabled: false
+          kubernetes-api-servers:
+            enabled: false
+          kubernetes-nodes:
+            enabled: false
+          kubernetes-nodes-cadvisor:
+            enabled: false
+          kubernetes-service-endpoints:
+            enabled: false
+          kubernetes-service-endpoints-slow:
+            enabled: false
+          prometheus-pushgateway:
+            enabled: false
+          kubernetes-services:
+            enabled: false
+          kubernetes-pods:
+            enabled: false
+          kubernetes-pods-slow:
+            enabled: false
+        server:
+          fullnameOverride: prometheus-server   # -> Service prometheus-server:9090
+          retention: "3d"
+          # enable the native OTLP write receiver (/api/v1/otlp/v1/metrics)
+          extraFlags:
+            - web.enable-lifecycle
+            - web.enable-otlp-receiver
+          service:
+            servicePort: 9090
+          persistentVolume:
+            enabled: true
+            size: 5Gi
+        serverFiles:
+          prometheus.yml:
+            # OTLP -> Prometheus naming: underscores + _total/unit suffixes,
+            # exactly what 25255 + ColeMurray query.
+            otlp:
+              translation_strategy: UnderscoreEscapingWithSuffixes
+              keep_identifying_resource_attributes: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
