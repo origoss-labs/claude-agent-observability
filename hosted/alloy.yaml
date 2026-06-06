@@ -52,10 +52,12 @@ spec:
                 format = "logfmt"
               }
 
+              // include_metadata=true exposes the incoming request headers (the
+              // X-Scope-OrgID that agentgateway stamps from the JWT tenant_id) to the
+              // from_context lookups below. http/protobuf is the primary hosted path.
               otelcol.receiver.otlp "default" {
-                // http/protobuf is the primary hosted path (proxy-friendly, TLS-terminable)
-                http { endpoint = "0.0.0.0:4318" }
-                grpc { endpoint = "0.0.0.0:4317" }
+                http { endpoint = "0.0.0.0:4318" include_metadata = true }
+                grpc { endpoint = "0.0.0.0:4317" include_metadata = true }
                 output {
                   metrics = [otelcol.processor.batch.default.input]
                   logs    = [otelcol.processor.batch.default.input]
@@ -63,7 +65,12 @@ spec:
                 }
               }
 
+              // metadata_keys is LOAD-BEARING for per-developer isolation (#186): it
+              // partitions batches per tenant AND re-attaches X-Scope-OrgID to the
+              // outgoing context so the exporters' from_context can read it. Drop it and
+              // batching merges all developers into one stream and loses the header.
               otelcol.processor.batch "default" {
+                metadata_keys = ["X-Scope-OrgID"]
                 output {
                   metrics = [otelcol.processor.deltatocumulative.default.input]
                   logs    = [otelcol.exporter.otlphttp.victorialogs.input]
@@ -79,27 +86,48 @@ spec:
                 }
               }
 
-              // metrics -> VictoriaMetrics OTLP-native; VM keeps dotted OTLP names.
-              // X-Scope-OrgID tenant header forwarding is wired in the ingress/auth PR.
+              // Tenant relabelling. The wire tenant is the NUMERIC tenant_id (ADR 0004):
+              // VictoriaMetrics + VictoriaLogs read it from the `AccountID` header;
+              // Tempo reads it from `X-Scope-OrgID`. Both derive from the single
+              // incoming X-Scope-OrgID metadata captured by the receiver.
+              otelcol.auth.headers "accountid_tenant" {
+                header {
+                  key          = "AccountID"
+                  from_context = "X-Scope-OrgID"
+                }
+              }
+              otelcol.auth.headers "orgid_tenant" {
+                header {
+                  key          = "X-Scope-OrgID"
+                  from_context = "X-Scope-OrgID"
+                }
+              }
+
+              // metrics -> VictoriaMetrics CLUSTER vminsert; header multitenancy means the
+              // tenant comes from the AccountID header, not the URL path. VM keeps dotted
+              // OTLP names.
               otelcol.exporter.otlphttp "vmnative" {
                 client {
-                  endpoint = "http://victoriametrics.observability.svc.cluster.local:8428/opentelemetry"
+                  endpoint = "http://vminsert.observability.svc.cluster.local:8480/insert/opentelemetry"
+                  auth     = otelcol.auth.headers.accountid_tenant.handler
                   tls { insecure = true }
                 }
               }
 
-              // logs -> VictoriaLogs OTLP-native; attributes land as queryable VL fields.
+              // logs -> VictoriaLogs; AccountID header selects the per-developer tenant.
               otelcol.exporter.otlphttp "victorialogs" {
                 client {
                   endpoint = "http://victorialogs.observability.svc.cluster.local:9428/insert/opentelemetry"
+                  auth     = otelcol.auth.headers.accountid_tenant.handler
                   tls { insecure = true }
                 }
               }
 
-              // traces -> Tempo OTLP gRPC, single shared store.
+              // traces -> Tempo OTLP gRPC; X-Scope-OrgID selects the per-developer tenant.
               otelcol.exporter.otlp "tempo" {
                 client {
                   endpoint = "tempo.observability.svc.cluster.local:4317"
+                  auth     = otelcol.auth.headers.orgid_tenant.handler
                   tls { insecure = true }
                 }
               }

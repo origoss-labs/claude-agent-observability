@@ -115,26 +115,32 @@ check() {
 
 # ---------- per-file verification ----------
 
-# ---- victoria-metrics ----
+# ---- victoria-metrics (cluster — multitenant, #186) ----
 VM_VALUES="$TMPDIR_ROOT/vm-values.yaml"
 cat > "$VM_VALUES" <<'EOF'
-server:
-  fullnameOverride: victoriametrics
+vminsert:
+  fullnameOverride: vminsert
+  replicaCount: 1
+  extraArgs:
+    enableMultitenancyViaHeaders: "true"
+vmselect:
+  fullnameOverride: vmselect
+  replicaCount: 1
+  extraArgs:
+    enableMultitenancyViaHeaders: "true"
+vmstorage:
+  fullnameOverride: vmstorage
+  replicaCount: 1
   retentionPeriod: "30d"
   persistentVolume:
     enabled: true
     size: 20Gi
-  extraArgs:
-    envflag.enable: "true"
-    envflag.prefix: VM_
-    loggerFormat: json
-    httpListenAddr: ":8428"
 EOF
 check "victoria-metrics yamllint"   run_yamllint "$HOSTED_DIR/victoria-metrics.yaml"
 check "victoria-metrics argoapp"    run_kubeconform_app "$HOSTED_DIR/victoria-metrics.yaml"
 check "victoria-metrics helm+kc"    helm_render_kubeconform \
   "vm" "https://victoriametrics.github.io/helm-charts/" \
-  "victoria-metrics-single" "0.39.0" "$VM_VALUES"
+  "victoria-metrics-cluster" "0.43.0" "$VM_VALUES"
 
 # ---- victoria-logs ----
 VL_VALUES="$TMPDIR_ROOT/vl-values.yaml"

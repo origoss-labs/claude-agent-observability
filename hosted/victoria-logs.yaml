@@ -1,9 +1,11 @@
 # Logs store — HOSTED deployment (ADR 0004). Single-binary VictoriaLogs. Loki (the
 # local dual-stack log store) is NOT deployed here.
 #
-# Multitenancy is intentionally NOT enabled in this slice (#185). Issue #186 enables
-# --enableMultitenancy (X-Scope-OrgID -> AccountID) and the matching Alloy/Grafana
-# routing.
+# Multitenancy (#186): VictoriaLogs is multi-tenant by design — the tenant is the
+# (AccountID, ProjectID) pair taken from the `AccountID`/`ProjectID` HTTP headers, no
+# server flag required (absent header => default tenant 0). Alloy stamps the `AccountID`
+# header from the numeric tenant_id it receives as X-Scope-OrgID (see hosted/alloy.yaml),
+# so each developer's logs land in their own tenant. The per-tenant Grafana read is #187.
 #
 # Service DNS: victorialogs.observability.svc.cluster.local:9428
 # OTLP ingest path: /insert/opentelemetry/v1/logs (Alloy's otlphttp exporter appends
