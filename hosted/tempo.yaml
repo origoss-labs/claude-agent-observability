@@ -16,7 +16,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: workloads
   source:
     repoURL: https://grafana.github.io/helm-charts
     chart: tempo            # monolithic single-binary chart (NOT tempo-distributed)

@@ -16,7 +16,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: workloads
   source:
     repoURL: https://github.com/origoss-labs/claude-agent-observability.git
     targetRevision: main   # foundation multi-source app pins the revision
