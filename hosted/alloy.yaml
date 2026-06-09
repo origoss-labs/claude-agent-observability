@@ -63,8 +63,14 @@ spec:
               // X-Scope-OrgID that agentgateway stamps from the JWT tenant_id) to the
               // from_context lookups below. http/protobuf is the primary hosted path.
               otelcol.receiver.otlp "default" {
-                http { endpoint = "0.0.0.0:4318" include_metadata = true }
-                grpc { endpoint = "0.0.0.0:4317" include_metadata = true }
+                http {
+                  endpoint         = "0.0.0.0:4318"
+                  include_metadata = true
+                }
+                grpc {
+                  endpoint         = "0.0.0.0:4317"
+                  include_metadata = true
+                }
                 output {
                   metrics = [otelcol.processor.batch.default.input]
                   logs    = [otelcol.processor.batch.default.input]
