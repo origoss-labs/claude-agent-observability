@@ -29,6 +29,13 @@ spec:
     targetRevision: "1.8.2"   # pinned; appVersion v1.16.1
     helm:
       values: |
+        # The chart installs a monitoring.grafana.com PodLogs CRD by default. The
+        # foundation `workloads` AppProject does not permit CustomResourceDefinition
+        # (only Namespace/ClusterRole/ClusterRoleBinding), so the CRD task is rejected
+        # and the whole app goes Missing. We use a hand-written otelcol pipeline (no
+        # PodLogs discovery), so the CRD is unneeded — skip it.
+        crds:
+          create: false
         controller:
           type: deployment
           replicas: 1

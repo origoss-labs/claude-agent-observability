@@ -28,6 +28,8 @@ spec:
       values: |
         server:
           fullnameOverride: victorialogs   # -> Service victorialogs:9428
+          image:
+            registry: docker.io   # qualify for OKE cri-o short-name-mode=enforcing (else ImageInspectError)
           retentionPeriod: "30d"
           persistentVolume:
             enabled: true
