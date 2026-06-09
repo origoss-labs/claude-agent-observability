@@ -77,7 +77,7 @@ spec:
         # Flip enabled: true once `dig +short grafana.ops.oracle-apps.origoss.com` returns
         # the NLB IP.
         ingress:
-          enabled: false
+          enabled: true   # DNS grafana.ops.oracle-apps.origoss.com -> NLB verified 2026-06-09
           ingressClassName: traefik
           annotations:
             cert-manager.io/cluster-issuer: letsencrypt-prod
