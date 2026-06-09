@@ -38,6 +38,11 @@ spec:
         # vminsert: ingestion. Header-based multitenancy -> tenant from `AccountID` header.
         vminsert:
           fullnameOverride: vminsert   # -> Service vminsert:8480
+          # OKE cri-o runs short-name-mode=enforcing: the chart's default
+          # image.registry:"" renders an unqualified name it refuses to resolve
+          # (ImageInspectError). Pin the registry explicitly.
+          image:
+            registry: docker.io
           replicaCount: 1
           extraArgs:
             enableMultitenancyViaHeaders: "true"
@@ -45,12 +50,16 @@ spec:
         # per-tenant routing + the cross-tenant admin view are wired in #187).
         vmselect:
           fullnameOverride: vmselect   # -> Service vmselect:8481
+          image:
+            registry: docker.io   # qualify for OKE cri-o (see vminsert)
           replicaCount: 1
           extraArgs:
             enableMultitenancyViaHeaders: "true"
         # vmstorage: durable store. 30-day rolling retention (ADR 0004).
         vmstorage:
           fullnameOverride: vmstorage   # -> Service vmstorage (8482/8401/8400)
+          image:
+            registry: docker.io   # qualify for OKE cri-o (see vminsert)
           replicaCount: 1
           retentionPeriod: "30d"
           persistentVolume:
