@@ -51,7 +51,12 @@ spec:
           auth.generic_oauth:
             enabled: true
             name: Keycloak
-            scopes: "openid email profile"
+            # offline_access + use_refresh_token: Keycloak access tokens expire in minutes;
+            # without refresh, oauthPassThru forwards an expired/absent token after first
+            # expiry and the read proxy 401s ("no bearer token found") → dashboard goes blank
+            # ~5 min after login. Refresh keeps the forwarded token valid (verified 2026-06-15).
+            scopes: "openid email profile offline_access"
+            use_refresh_token: true
             auth_url: https://auth.oracle-apps.origoss.com/realms/agentregistry/protocol/openid-connect/auth
             token_url: https://auth.oracle-apps.origoss.com/realms/agentregistry/protocol/openid-connect/token
             api_url: https://auth.oracle-apps.origoss.com/realms/agentregistry/protocol/openid-connect/userinfo
