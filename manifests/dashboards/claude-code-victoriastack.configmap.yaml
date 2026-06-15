@@ -3800,6 +3800,9 @@ data:
         "list": [
           {
             "current": {
+              "selected": true,
+              "text": "claude-code",
+              "value": "claude-code"
             },
             "datasource": {
               "type": "victoriametrics-metrics-datasource",
