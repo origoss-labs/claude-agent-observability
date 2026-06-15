@@ -3,6 +3,10 @@
 # gate denies /select/multitenant to non-admins; Grafana shows it via the admin DS).
 # Dotted OTLP metric/label names (claude_code.token.usage, user.email) — MetricsQL accepts
 # them unquoted in by(), same as the per-tenant 24640 board.
+# Tools section uses the claude_code.code_edit_tool.decision METRIC only (accept/reject).
+# Per-tool_name usage (calls/duration/success/errors) is in the claude_code.tool_result
+# VictoriaLogs stream, which has no /select/multitenant endpoint — cross-tenant logs are
+# deferred (#188), so a tool_name breakdown is not available org-wide here.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -19,7 +23,7 @@ data:
       "tags": ["claude-code", "aggregate", "admin"],
       "timezone": "",
       "schemaVersion": 39,
-      "version": 1,
+      "version": 2,
       "refresh": "1m",
       "time": { "from": "now-7d", "to": "now" },
       "templating": { "list": [] },
@@ -66,6 +70,46 @@ data:
           "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
           "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2 }, "overrides": [] },
           "targets": [ { "refId": "A", "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" }, "expr": "sum(increase(claude_code.cost.usage[$__range])) by (user.email)", "legendFormat": "{{user.email}}" } ]
+        },
+        {
+          "id": 100, "type": "row", "title": "Tools (edit-tool decisions)",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
+          "collapsed": false, "panels": []
+        },
+        {
+          "id": 7, "type": "stat", "title": "Edit-tool decisions (range)",
+          "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" },
+          "gridPos": { "h": 4, "w": 8, "x": 0, "y": 21 },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [ { "refId": "A", "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" }, "expr": "sum(increase(claude_code.code_edit_tool.decision[$__range]))" } ]
+        },
+        {
+          "id": 8, "type": "stat", "title": "Accept rate (range)",
+          "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" },
+          "gridPos": { "h": 4, "w": 8, "x": 8, "y": 21 },
+          "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1, "min": 0, "max": 100 }, "overrides": [] },
+          "targets": [ { "refId": "A", "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" }, "expr": "sum(increase(claude_code.code_edit_tool.decision{decision=\"accept\"}[$__range])) / sum(increase(claude_code.code_edit_tool.decision[$__range])) * 100" } ]
+        },
+        {
+          "id": 9, "type": "stat", "title": "Engineers using edit tools",
+          "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" },
+          "gridPos": { "h": 4, "w": 8, "x": 16, "y": 21 },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [ { "refId": "A", "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" }, "expr": "count(group(claude_code.code_edit_tool.decision) by (user.email))" } ]
+        },
+        {
+          "id": 10, "type": "timeseries", "title": "Edit decisions over time (accept vs reject)",
+          "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [ { "refId": "A", "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" }, "expr": "sum(rate(claude_code.code_edit_tool.decision{decision!=\"\"}[5m])) by (decision)", "legendFormat": "{{decision}}" } ]
+        },
+        {
+          "id": 11, "type": "timeseries", "title": "Edit decisions by engineer (range)",
+          "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [ { "refId": "A", "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" }, "expr": "sum(increase(claude_code.code_edit_tool.decision[$__range])) by (user.email)", "legendFormat": "{{user.email}}" } ]
         }
       ]
     }
