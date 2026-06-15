@@ -1,0 +1,71 @@
+# Claude Code — Org Aggregate dashboard. Cross-tenant ("all engineers") view via the
+# vmetrics-admin datasource (/select/multitenant). Visible to Obs Admins only (the read
+# gate denies /select/multitenant to non-admins; Grafana shows it via the admin DS).
+# Dotted OTLP metric/label names (claude_code.token.usage, user.email) — MetricsQL accepts
+# them unquoted in by(), same as the per-tenant 24640 board.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-code-aggregate-dashboard
+  namespace: observability
+  labels:
+    grafana_dashboard: '1'
+data:
+  claude-code-aggregate.json: |-
+    {
+      "uid": "claude-code-aggregate",
+      "title": "Claude Code — Org Aggregate (all engineers)",
+      "tags": ["claude-code", "aggregate", "admin"],
+      "timezone": "",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "1m",
+      "time": { "from": "now-7d", "to": "now" },
+      "templating": { "list": [] },
+      "annotations": { "list": [] },
+      "panels": [
+        {
+          "id": 1, "type": "stat", "title": "Total tokens (range)",
+          "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" },
+          "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [ { "refId": "A", "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" }, "expr": "sum(increase(claude_code.token.usage[$__range]))" } ]
+        },
+        {
+          "id": 2, "type": "stat", "title": "Total cost USD (range)",
+          "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" },
+          "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2 }, "overrides": [] },
+          "targets": [ { "refId": "A", "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" }, "expr": "sum(increase(claude_code.cost.usage[$__range]))" } ]
+        },
+        {
+          "id": 3, "type": "stat", "title": "Active engineers",
+          "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" },
+          "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [ { "refId": "A", "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" }, "expr": "count(group(claude_code.token.usage) by (user.email))" } ]
+        },
+        {
+          "id": 4, "type": "timeseries", "title": "Token rate by model",
+          "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [ { "refId": "A", "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" }, "expr": "sum(rate(claude_code.token.usage[5m])) by (model)", "legendFormat": "{{model}}" } ]
+        },
+        {
+          "id": 5, "type": "timeseries", "title": "Token rate by engineer",
+          "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [ { "refId": "A", "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" }, "expr": "sum(rate(claude_code.token.usage[5m])) by (user.email)", "legendFormat": "{{user.email}}" } ]
+        },
+        {
+          "id": 6, "type": "timeseries", "title": "Cost by engineer (range, USD)",
+          "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+          "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2 }, "overrides": [] },
+          "targets": [ { "refId": "A", "datasource": { "type": "victoriametrics-metrics-datasource", "uid": "vmetrics-admin" }, "expr": "sum(increase(claude_code.cost.usage[$__range])) by (user.email)", "legendFormat": "{{user.email}}" } ]
+        }
+      ]
+    }

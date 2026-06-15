@@ -25,12 +25,12 @@ spec:
   project: workloads
   source:
     repoURL: https://github.com/origoss-labs/claude-agent-observability.git
-    targetRevision: v0.1.5   # labs release tag. The foundation observability.yaml recurses
+    targetRevision: v0.1.7   # labs release tag. The foundation observability.yaml recurses
                              # hosted/ and applies this child verbatim — it does NOT override
                              # child revisions, so 'main' here would float past the release pin.
     path: manifests/dashboards
     directory:
-      include: 'claude-code-victoriastack.configmap.yaml'
+      include: 'claude-code-{victoriastack,aggregate}.configmap.yaml'
   destination:
     server: https://kubernetes.default.svc   # placeholder — overridden by foundation Argo CD
     namespace: observability
