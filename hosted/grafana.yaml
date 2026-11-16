@@ -134,8 +134,8 @@ spec:
                 url: http://agentgateway-obs-read.agentgateway-obs-read.svc.cluster.local:8481/select/multitenant/prometheus
                 jsonData:
                   oauthPassThru: true
-              # VictoriaLogs — LogsQL. Per-developer only (admin cross-tenant logs deferred:
-              # VictoriaLogs has no /select/multitenant endpoint).
+              # VictoriaLogs — LogsQL. Per-developer (VictoriaLogs has no
+              # /select/multitenant endpoint, so no cross-tenant aggregate).
               - name: VictoriaLogs
                 uid: vlogs
                 type: victoriametrics-logs-datasource
@@ -143,6 +143,20 @@ spec:
                 url: http://agentgateway-obs-read.agentgateway-obs-read.svc.cluster.local:9428
                 jsonData:
                   oauthPassThru: true
+              # Admin-only PLATFORM logs (VictoriaLogs tenant 0: cluster workloads, e.g. the
+              # OpenViking gateway access log). The header asks the read proxy for tenant 0;
+              # the proxy honours it ONLY for allowlisted admins — everyone else gets their
+              # own tenant, so isolation is enforced at the proxy, not here.
+              - name: VictoriaLogs (Admin — platform)
+                uid: vlogs-platform
+                type: victoriametrics-logs-datasource
+                access: proxy
+                url: http://agentgateway-obs-read.agentgateway-obs-read.svc.cluster.local:9428
+                jsonData:
+                  oauthPassThru: true
+                  httpHeaderName1: X-Obs-Platform
+                secureJsonData:
+                  httpHeaderValue1: "1"
               # Tempo — trace waterfall; trace->logs wired to VictoriaLogs. Admins get the
               # cross-tenant aggregate (proxy stamps the pipe-list X-Scope-OrgID).
               - name: Tempo
